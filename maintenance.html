@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Under Maintenance — Afro Gallero</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <style>
+    /* ========================================
+       YOUR EXACT CSS VARIABLES & THEME
+       ======================================== */
+    :root {
+      --bg: #FAF7F2;
+      --bg-secondary: #F3EDE4;
+      --fg: #1A1A1A;
+      --fg-secondary: #4A4A4A;
+      --muted: #8A8A7A;
+      --accent: #B8860B;
+      --accent-hover: #9A7209;
+      --accent-light: rgba(184, 134, 11, 0.12);
+      --card: #FFFFFF;
+      --card-hover: #FFFDF8;
+      --border: #E8E2D9;
+      --border-light: #F0EBE3;
+      --overlay: rgba(26, 26, 26, 0.6);
+      --overlay-heavy: rgba(26, 26, 26, 0.85);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+      --shadow-xl: 0 20px 60px rgba(0,0,0,0.15);
+      --danger: #C0392B;
+      --success: #27AE60;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-ui: 'DM Sans', system-ui, sans-serif;
+      --whatsapp: #25D366;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0F0F0F;
+      --bg-secondary: #161616;
+      --fg: #F0EBE3;
+      --fg-secondary: #B0ADA6;
+      --muted: #6B6B6B;
+      --accent: #D4A853;
+      --accent-hover: #E0B964;
+      --accent-light: rgba(212, 168, 83, 0.12);
+      --card: #1A1A1A;
+      --card-hover: #222222;
+      --border: #2A2A2A;
+      --border-light: #222222;
+      --overlay: rgba(0, 0, 0, 0.7);
+      --overlay-heavy: rgba(0, 0, 0, 0.9);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+      --shadow-xl: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    /* ========================================
+       RESET & BASE
+       ======================================== */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ========================================
+       ANIMATED BACKGROUND
+       ======================================== */
+    .bg-pattern {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .bg-pattern::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 20%, var(--accent-light) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 80%, var(--accent-light) 0%, transparent 50%);
+      animation: bgFloat 20s ease-in-out infinite;
+    }
+
+    .bg-pattern::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.5;
+    }
+
+    @keyframes bgFloat {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      33% { transform: translate(30px, -30px) rotate(1deg); }
+      66% { transform: translate(-20px, 20px) rotate(-1deg); }
+    }
+
+    /* ========================================
+       FLOATING PARTICLES
+       ======================================== */
+    .particles {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: var(--accent);
+      border-radius: 50%;
+      opacity: 0;
+      animation: particleFloat linear infinite;
+    }
+
+    @keyframes particleFloat {
+      0% {
+        opacity: 0;
+        transform: translateY(100vh) scale(0);
+      }
+      10% { opacity: 0.6; }
+      90% { opacity: 0.6; }
+      100% {
+        opacity: 0;
+        transform: translateY(-10vh) scale(1);
+      }
+    }
+
+    /* ========================================
+       MAIN CONTAINER
+       ======================================== */
+    .maintenance-container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 620px;
+      padding: 2rem;
+      animation: containerIn 1s ease-out;
+    }
+
+    @keyframes containerIn {
+      from {
+        opacity: 0;
+        transform: translateY(40px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* ========================================
+       ICON AREA
+       ======================================== */
+    .icon-area {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 2rem;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-ring {
+      position: absolute;
+      inset: 0;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      animation: ringPulse 3s ease-in-out infinite;
+    }
+
+    .icon-ring:nth-child(2) {
+      inset: -12px;
+      border-color: var(--border);
+      animation-delay: 0.5s;
+    }
+
+    .icon-ring:nth-child(3) {
+      inset: -24px;
+      border-color: var(--border-light);
+      animation-delay: 1s;
+    }
+
+    @keyframes ringPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.08); opacity: 0.5; }
+    }
+
+    .icon-inner {
+      width: 80px;
+      height: 80px;
+      background: var(--accent-light);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+
+    .icon-inner i {
+      width: 36px;
+      height: 36px;
+    }
+
+    /* ========================================
+       TYPOGRAPHY
+       ======================================== */
+    .brand-name {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+    }
+
+    .main-heading {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      color: var(--fg);
+      margin-bottom: 1rem;
+    }
+
+    .main-message {
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: var(--fg-secondary);
+      margin-bottom: 2rem;
+    }
+
+    /* ========================================
+       PROGRESS BAR
+       ======================================== */
+    .progress-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .progress-label span:first-child {
+      color: var(--fg-secondary);
+      font-weight: 500;
+    }
+
+    .progress-label span:last-child {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-secondary);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+      border-radius: 100px;
+      width: 0%;
+      transition: width 1.5s ease-out;
+      position: relative;
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: progressShimmer 2s infinite;
+    }
+
+    @keyframes progressShimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* ========================================
+       STATUS BADGES
+       ======================================== */
+    .status-row {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 100px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: var(--bg-secondary);
+      color: var(--fg-secondary);
+      border: 1px solid var(--border-light);
+    }
+
+    .status-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .status-badge.active .dot {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(39, 174, 96, 0.5);
+      animation: dotPulse 2s infinite;
+    }
+
+    .status-badge.warning .dot {
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(184, 134, 11, 0.5);
+      animation: dotPulse 1.5s infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ========================================
+       CONTACT SECTION
+       ======================================== */
+    .contact-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .contact-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .contact-links {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .contact-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--fg);
+    }
+
+    .contact-btn:hover {
+      background: var(--card-hover);
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .contact-btn i {
+      width: 16px;
+      height: 16px;
+    }
+
+    .contact-btn.whatsapp {
+      background: var(--whatsapp);
+      border-color: var(--whatsapp);
+      color: #fff;
+    }
+
+    .contact-btn.whatsapp:hover {
+      background: #1da851;
+      border-color: #1da851;
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(37, 211, 102, 0.3);
+    }
+
+    /* ========================================
+       FOOTER
+       ======================================== */
+    .footer-note {
+      position: relative;
+      z-index: 1;
+      margin-top: 3rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      opacity: 0.7;
+    }
+
+    .footer-note a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* ========================================
+       AUTO-REDIRECT NOTICE
+       ======================================== */
+    .redirect-notice {
+      position: relative;
+      z-index: 1;
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    .redirect-notice.visible {
+      opacity: 1;
+    }
+
+    /* ========================================
+       LOADING SCREEN
+       ======================================== */
+    #loadingScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1.5rem;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    #loadingScreen.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .loader-ring {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loader-text {
+      font-size: 0.9rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* ========================================
+       RESPONSIVE
+       ======================================== */
+    @media (max-width: 640px) {
+      .maintenance-container {
+        padding: 1.5rem;
+      }
+      .icon-area {
+        width: 100px;
+        height: 100px;
+        margin-bottom: 1.5rem;
+      }
+      .icon-inner {
+        width: 64px;
+        height: 64px;
+      }
+      .icon-inner i {
+        width: 28px;
+        height: 28px;
+      }
+      .status-row {
+        gap: 0.5rem;
+      }
+      .contact-links {
+        flex-direction: column;
+      }
+      .contact-btn {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loadingScreen">
+    <div class="loader-ring"></div>
+    <p class="loader-text">Checking site status...</p>
+  </div>
+
+  <!-- Animated Background -->
+  <div class="bg-pattern"></div>
+
+  <!-- Floating Particles -->
+  <div class="particles" id="particles"></div>
+
+  <!-- Main Content (hidden until Firebase confirms maintenance) -->
+  <div class="maintenance-container" id="maintenanceUI" style="display:none;">
+    <div class="icon-area">
+      <div class="icon-ring"></div>
+      <div class="icon-ring"></div>
+      <div class="icon-ring"></div>
+      <div class="icon-inner">
+        <i data-lucide="settings"></i>
+      </div>
+    </div>
+
+    <p class="brand-name">Afro Gallero</p>
+
+    <h1 class="main-heading">We'll Be Right Back</h1>
+
+    <p class="main-message" id="maintenanceMessage">
+      Our gallery is undergoing scheduled maintenance to bring you an even better experience. We're polishing every detail and will return shortly.
+    </p>
+
+    <div class="progress-section">
+      <div class="progress-label">
+        <span>Maintenance Progress</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="status-row">
+      <div class="status-badge warning">
+        <span class="dot"></span>
+        Gallery Offline
+      </div>
+      <div class="status-badge active">
+        <span class="dot"></span>
+        Database Syncing
+      </div>
+      <div class="status-badge active">
+        <span class="dot"></span>
+        Team Working
+      </div>
+    </div>
+
+    <div class="contact-card">
+      <p class="contact-title">Need to reach us?</p>
+      <div class="contact-links">
+        <a href="https://wa.me/256700000000" target="_blank" rel="noopener" class="contact-btn whatsapp">
+          <i data-lucide="message-circle"></i>
+          WhatsApp
+        </a>
+        <a href="mailto:hello@afrogallero.com" class="contact-btn">
+          <i data-lucide="mail"></i>
+          Email
+        </a>
+        <a href="https://instagram.com/afrogallero" target="_blank" rel="noopener" class="contact-btn">
+          <i data-lucide="instagram"></i>
+          Instagram
+        </a>
+      </div>
+    </div>
+
+    <p class="redirect-notice" id="redirectNotice">
+      This page will auto-refresh when maintenance is complete.
+    </p>
+  </div>
+
+  <p class="footer-note" id="footerNote" style="display:none;">
+    &copy; 2025 Afro Gallero — Contemporary Art Gallery
+  </p>
+
+  <script>
+    /* ============================================
+       FIREBASE CONFIG — AUTH_CONFIG ONLY
+       Settings live in this same database
+       ============================================ */
+    const firebaseConfig = {
+      apiKey: "AIzaSyC483ZOHvItMVBCe1HufHO39FyYVlNDPLU",
+      authDomain: "auther-afro-gallero.firebaseapp.com",
+      projectId: "auther-afro-gallero",
+      storageBucket: "auther-afro-gallero.firebasestorage.app",
+      messagingSenderId: "60533127446",
+      appId: "1:60533127446:web:3270a06931b2405348b837"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    /* ============================================
+       GENERATE FLOATING PARTICLES
+       ============================================ */
+    (function createParticles() {
+      const container = document.getElementById('particles');
+      for (let i = 0; i < 20; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.width = (Math.random() * 4 + 2) + 'px';
+        p.style.height = p.style.width;
+        p.style.animationDuration = (Math.random() * 10 + 8) + 's';
+        p.style.animationDelay = (Math.random() * 10) + 's';
+        p.style.opacity = 0;
+        container.appendChild(p);
+      }
+    })();
+    
+    /* ============================================
+       FAKE PROGRESS ANIMATION
+       ============================================ */
+    function animateProgress() {
+      const fill = document.getElementById('progressFill');
+      const percent = document.getElementById('progressPercent');
+      let current = 0;
+      const target = 72;
+      const interval = setInterval(() => {
+        if (current >= target) { clearInterval(interval); return; }
+        current += Math.random() * 3 + 0.5;
+        if (current > target) current = target;
+        fill.style.width = current + '%';
+        percent.textContent = Math.round(current) + '%';
+      }, 200);
+    }
+    
+    /* ============================================
+       LISTEN TO MAINTENANCE FLAG
+       ============================================ */
+    const loadingScreen = document.getElementById('loadingScreen');
+    const maintenanceUI = document.getElementById('maintenanceUI');
+    const footerNote = document.getElementById('footerNote');
+    const redirectNotice = document.getElementById('redirectNotice');
+    
+    /* Bypass check: ?bypass=1 in URL skips maintenance */
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('bypass') === '1') {
+      window.location.href = 'index.html';
+    }
+    
+    db.ref('settings/maintenance').on('value', (snapshot) => {
+      const isMaintenance = snapshot.val() === true;
+      
+      /* Hide loading screen */
+      loadingScreen.classList.add('hidden');
+      
+      if (isMaintenance) {
+        /* Show maintenance page */
+        maintenanceUI.style.display = '';
+        footerNote.style.display = '';
+        setTimeout(() => redirectNotice.classList.add('visible'), 2000);
+        animateProgress();
+        lucide.createIcons();
+        
+        /* Fetch custom message from Firebase */
+        db.ref('settings/maintenanceMessage').once('value').then(msgSnap => {
+          const customMsg = msgSnap.val();
+          if (customMsg && customMsg.trim()) {
+            document.getElementById('maintenanceMessage').textContent = customMsg;
+          }
+        });
+        
+        /* Auto-redirect when maintenance turns off */
+        db.ref('settings/maintenance').on('value', (checkSnap) => {
+          if (checkSnap.val() !== true) {
+            window.location.href = 'index.html';
+          }
+        }, { onlyOnce: true });
+        
+      } else {
+        /* Not in maintenance — redirect to main site */
+        window.location.href = 'index.html';
+      }
+    }, (error) => {
+      /* Firebase error — redirect to main site as fallback */
+      console.error('Firebase read error:', error);
+      loadingScreen.classList.add('hidden');
+      window.location.href = 'index.html';
+    });
+    /* ============================================
+   ADVANCED WEBSITE ANALYTICS SYSTEM
+   Tracks: page views per hash, unique visitors
+   (fingerprint), clicks, session duration, device
+   info, referrer, first vs returning, active users
+   Batch writes every 30 seconds
+   ============================================ */
+const SiteAnalytics = (function () {
+  const FP_KEY = 'artFP';
+  const SES_KEY = 'artSes';
+  const FV_KEY = 'artFV';
+
+  /* --- Fingerprint Generation --- */
+  function generateFingerprint() {
+    try {
+      const c = document.createElement('canvas');
+      const ctx = c.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillText('FP|' + navigator.language + '|' + screen.width + 'x' + screen.height, 2, 2);
+      const hash = c.toDataURL().split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
+      const parts = [
+        hash, navigator.language, screen.width + 'x' + screen.height, screen.colorDepth,
+        new Date().getTimezoneOffset(), navigator.hardwareConcurrency || 0,
+        navigator.platform || ''
+      ];
+      let h = 0;
+      const str = parts.join('|');
+      for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+      return 'fp_' + Math.abs(h).toString(36);
+    } catch (e) {
+      return 'fp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6);
+    }
+  }
+
+  function getFingerprint() {
+    let fp = localStorage.getItem(FP_KEY);
+    if (!fp) { fp = generateFingerprint(); localStorage.setItem(FP_KEY, fp); }
+    return fp;
+  }
+
+  function isFirstVisit() {
+    if (localStorage.getItem(FV_KEY) === '1') return false;
+    localStorage.setItem(FV_KEY, '1');
+    return true;
+  }
+
+  function getSessionId() {
+    let sid = sessionStorage.getItem(SES_KEY);
+    if (!sid) { sid = 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5); sessionStorage.setItem(SES_KEY, sid); }
+    return sid;
+  }
+
+  function getDevice() {
+    const ua = navigator.userAgent;
+    if (/Mobile|Android|iPhone|iPod/i.test(ua)) return 'Mobile';
+    if (/iPad|Tablet/i.test(ua)) return 'Tablet';
+    return 'Desktop';
+  }
+
+  function getBrowser() {
+    const ua = navigator.userAgent;
+    if (ua.includes('Edg')) return 'Edge';
+    if (ua.includes('OPR') || ua.includes('Opera')) return 'Opera';
+    if (ua.includes('Chrome')) return 'Chrome';
+    if (ua.includes('Firefox')) return 'Firefox';
+    if (ua.includes('Safari')) return 'Safari';
+    return 'Other';
+  }
+
+  function getOS() {
+    const ua = navigator.userAgent;
+    if (ua.includes('Windows')) return 'Windows';
+    if (ua.includes('Mac')) return 'macOS';
+    if (ua.includes('Android')) return 'Android';
+    if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
+    if (ua.includes('Linux')) return 'Linux';
+    return 'Other';
+  }
+
+  function getReferrer() {
+    if (document.referrer) {
+      try { return new URL(document.referrer).hostname; } catch (e) { return document.referrer.substring(0, 100); }
+    }
+    return 'direct';
+  }
+
+  function pageName() {
+    const h = location.hash.slice(1) || 'home';
+    return h.split('/')[0];
+  }
+
+  function todayKey() { return new Date().toISOString().split('T')[0]; }
+
+  /* --- State --- */
+  let db = null;
+  let fp = null;
+  let sid = null;
+  let startTs = 0;
+  let clicks = 0;
+  let flushed = false;
+  let presRef = null;
+  let eventQueue = [];
+  let flushTimer = null;
+
+  function enqueue(event) {
+    eventQueue.push({ ...event, ts: Date.now(), fp, sid, dev: getDevice(), brw: getBrowser(), os: getOS(), scr: screen.width + 'x' + screen.height, ref: getReferrer() });
+    if (eventQueue.length >= 50) flushQueue();
+  }
+
+  function flushQueue() {
+    if (!db || eventQueue.length === 0) return;
+    const batch = eventQueue.splice(0, eventQueue.length);
+    const td = todayKey();
+
+    /* Aggregate from batch */
+    let views = 0, clickCount = 0;
+    const pageViews = {};
+    const clickDetails = [];
+    const referrers = {};
+    const devices = {};
+    const browsers = {};
+
+    batch.forEach(ev => {
+      if (ev.type === 'view') {
+        views++;
+        pageViews[ev.page] = (pageViews[ev.page] || 0) + 1;
+      }
+      if (ev.type === 'click') {
+        clickCount++;
+        clickDetails.push({ page: ev.page, label: (ev.label || '').substring(0, 80), dev: ev.dev, brw: ev.brw, ts: ev.ts });
+      }
+      if (ev.ref) referrers[ev.ref] = (referrers[ev.ref] || 0) + 1;
+      devices[ev.dev] = (devices[ev.dev] || 0) + 1;
+      browsers[ev.brw] = (browsers[ev.brw] || 0) + 1;
+    });
+
+    const updates = {};
+
+    /* Daily counters */
+    updates[`analytics/daily/${td}/views`] = (views > 0) ? views : null;
+    updates[`analytics/daily/${td}/clicks`] = (clickCount > 0) ? clickCount : null;
+
+    /* Per-page views */
+    Object.entries(pageViews).forEach(([pg, cnt]) => {
+      updates[`analytics/pages/${pg}/views`] = cnt;
+    });
+
+    /* Referrers */
+    Object.entries(referrers).forEach(([ref, cnt]) => {
+      updates[`analytics/referrers/${ref}`] = cnt;
+    });
+
+    /* Devices */
+    Object.entries(devices).forEach(([dev, cnt]) => {
+      updates[`analytics/devices/${dev}`] = cnt;
+    });
+
+    /* Browsers */
+    Object.entries(browsers).forEach(([brw, cnt]) => {
+      updates[`analytics/browsers/${brw}`] = cnt;
+    });
+
+    /* Session data */
+    const dur = Math.round((Date.now() - startTs) / 1000);
+    if (dur >= 2) {
+      updates[`analytics/daily/${td}/sessions`] = 1;
+      updates[`analytics/daily/${td}/duration`] = dur;
+    }
+
+    /* Recent activity (keep last 100) */
+    const recentSlice = clickDetails.slice(-20);
+    recentSlice.forEach(ev => {
+      const ref = db.ref('analytics/recent').push();
+      updates[`analytics/recent/${ref.key}`] = ev;
+    });
+
+    /* Multi-path update */
+    db.ref().update(updates).catch(() => {});
+
+    /* Also do transaction-based increments for accurate counters */
+    if (views > 0) safeTx(`analytics/daily/${td}/views`, views);
+    if (clickCount > 0) safeTx(`analytics/daily/${td}/clicks`, clickCount);
+    Object.entries(pageViews).forEach(([pg, cnt]) => safeTx(`analytics/pages/${pg}/views`, cnt));
+
+    /* Limit recent to 100 entries */
+    db.ref('analytics/recent').orderByKey().limitToFirst(200).once('value').then(snap => {
+      const data = snap.val();
+      if (data) {
+        const keys = Object.keys(data);
+        if (keys.length > 100) {
+          const toRemove = keys.slice(0, keys.length - 100);
+          const deletes = {};
+          toRemove.forEach(k => deletes[`analytics/recent/${k}`] = null);
+          db.ref().update(deletes).catch(() => {});
+        }
+      }
+    }).catch(() => {});
+  }
+
+  function safeTx(path, delta) {
+    if (!db) return;
+    try { db.ref(path).transaction(v => (v || 0) + delta); } catch (e) { /* silent */ }
+  }
+
+  function trackVisit(isNew) {
+    if (!db) return;
+    const pg = pageName();
+    const td = todayKey();
+
+    /* Unique daily visitor (once per fingerprint per day) */
+    const dk = `adv_${td}_${fp}`;
+    if (!sessionStorage.getItem(dk)) {
+      sessionStorage.setItem(dk, '1');
+      safeTx(`analytics/daily/${td}/visitors`, 1);
+      safeTx(`analytics/daily/${td}/${isNew ? 'newVisitors' : 'returningVisitors'}`, 1);
+    }
+
+    /* Unique page visitor */
+    const pk = `apv_${pg}_${fp}`;
+    if (!sessionStorage.getItem(pk)) {
+      sessionStorage.setItem(pk, '1');
+      safeTx(`analytics/pages/${pg}/visitors`, 1);
+    }
+
+    /* First visit flag */
+    if (isNew) {
+      db.ref('analytics/fingerprints/' + fp).set({
+        firstSeen: Date.now(), dev: getDevice(), brw: getBrowser(),
+        os: getOS(), scr: screen.width + 'x' + screen.height, ref: getReferrer()
+      }).catch(() => {});
+    }
+
+    enqueue({ type: 'view', page: pg, isNew });
+  }
+
+  function flush() {
+    if (!db || flushed) return;
+    flushed = true;
+    flushQueue();
+  }
+
+  function setupPresence() {
+    if (!db || presRef) return;
+    presRef = db.ref('analytics/live/' + fp);
+    presRef.onDisconnect().remove();
+    presRef.set({ pg: pageName(), dev: getDevice(), brw: getBrowser(), t: Date.now() });
+    const hb = setInterval(() => {
+      try { presRef.update({ pg: pageName(), t: Date.now() }); } catch (e) { clearInterval(hb); }
+    }, 25000);
+    window.addEventListener('hashchange', () => {
+      try { presRef.update({ pg: pageName(), t: Date.now() }); } catch (e) { /* */ }
+    });
+  }
+
+  function init(analyticsDb) {
+    db = analyticsDb;
+    if (!db) return;
+    fp = getFingerprint();
+    sid = getSessionId();
+    const isNew = isFirstVisit();
+    startTs = Date.now();
+
+    trackVisit(isNew);
+
+    window.addEventListener('hashchange', () => trackVisit(false));
+
+    document.addEventListener('click', (e) => {
+      const el = e.target.closest('button, a, .artwork-card, .artist-profile-card, .nav-link, .btn, [role="button"], .search-view-btn, .dropdown-item, .tab');
+      if (!el) return;
+      let lbl = '';
+      if (el.dataset.id) lbl = el.dataset.id;
+      else if (el.dataset.artworkId) lbl = el.dataset.artworkId;
+      else if (el.dataset.artist) lbl = el.dataset.artist;
+      else if (el.dataset.page) lbl = el.dataset.page;
+      else if (el.dataset.tab) lbl = 'tab:' + el.dataset.tab;
+      else if (el.dataset.curr) lbl = 'currency:' + el.dataset.curr;
+      else if (el.dataset.lang) lbl = 'lang:' + el.dataset.lang;
+      else if (el.textContent) lbl = el.textContent.trim().substring(0, 80);
+      else if (el.getAttribute('aria-label')) lbl = el.getAttribute('aria-label');
+      if (!lbl) lbl = el.tagName.toLowerCase();
+      enqueue({ type: 'click', page: pageName(), label: lbl });
+    });
+
+    setupPresence();
+
+    flushTimer = setInterval(flushQueue, 30000);
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushQueue(); });
+  }
+
+  return { init };
+})();
+  </script>
+</body>
+</html>

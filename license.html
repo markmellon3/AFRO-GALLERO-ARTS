@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>License Agreement — Afro Gallero</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+   <style>
+    :root {
+      --bg: #FAF7F2;
+      --bg-secondary: #F3EDE4;
+      --fg: #1A1A1A;
+      --fg-secondary: #4A4A4A;
+      --muted: #8A8A7A;
+      --accent: #B8860B;
+      --accent-hover: #9A7209;
+      --accent-light: rgba(184, 134, 11, 0.12);
+      --card: #FFFFFF;
+      --border: #E8E2D9;
+      --border-light: #F0EBE3;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+      --danger: #C0392B;
+      --success: #27AE60;
+      --info: #2980B9;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-ui: 'DM Sans', system-ui, sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0F0F0F;
+      --bg-secondary: #161616;
+      --fg: #F0EBE3;
+      --fg-secondary: #B0ADA6;
+      --muted: #6B6B6B;
+      --accent: #D4A853;
+      --accent-hover: #E0B964;
+      --accent-light: rgba(212, 168, 83, 0.12);
+      --card: #1A1A1A;
+      --border: #2A2A2A;
+      --border-light: #222222;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+    }
+
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.7;
+    }
+
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(12px);
+    }
+
+    [data-theme="dark"] .top-bar {
+      background: rgba(26, 26, 26, 0.85);
+    }
+
+    .top-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .top-bar-brand {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .top-bar-sep {
+      color: var(--border);
+      font-size: 1.1rem;
+    }
+
+    .top-bar-title {
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--fg-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .back-link:hover {
+      color: var(--accent);
+    }
+
+    .back-link i {
+      width: 15px;
+      height: 15px;
+    }
+
+    .license-hero {
+      text-align: center;
+      padding: 4rem 1.5rem 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .license-hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, var(--accent-light) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .license-hero-icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 1.5rem;
+      background: var(--accent-light);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      position: relative;
+    }
+
+    .license-hero-icon i {
+      width: 32px;
+      height: 32px;
+    }
+
+    .license-hero-icon::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border: 1.5px dashed var(--border);
+      border-radius: 50%;
+      animation: spinSlow 30s linear infinite;
+    }
+
+    @keyframes spinSlow {
+      to { transform: rotate(360deg); }
+    }
+
+    .license-hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+      position: relative;
+    }
+
+    .license-hero .version {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.85rem;
+      background: var(--accent-light);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      position: relative;
+    }
+
+    .license-hero p {
+      color: var(--fg-secondary);
+      font-size: 1rem;
+      max-width: 600px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .meta-bar {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      padding: 1rem 1.5rem;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-light);
+      border-bottom: 1px solid var(--border-light);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .meta-item i {
+      width: 14px;
+      height: 14px;
+      color: var(--accent);
+    }
+
+    .meta-item strong {
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    /* ===== LAYOUT ===== */
+    .license-layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    /* ===== TOC TOGGLE BUTTON (mobile) ===== */
+    .toc-toggle {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      width: 100%;
+      padding: 0.65rem 1rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: var(--font-u);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--fg-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 1rem;
+    }
+
+    .toc-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .toc-toggle i {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.3s;
+    }
+
+    .toc-toggle.open i {
+      transform: rotate(180deg);
+    }
+
+    /* ===== TOC ===== */
+    .toc {
+      position: sticky;
+      top: 80px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      box-shadow: var(--shadow-sm);
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+
+    .toc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .toc-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+    }
+
+    .toc-close {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border: none;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+
+    .toc-close:hover {
+      background: var(--border);
+      color: var(--fg);
+    }
+
+    .toc-close i {
+      width: 14px;
+      height: 14px;
+    }
+
+    .toc-list {
+      list-style: none;
+    }
+
+    .toc-list li {
+      margin-bottom: 0.15rem;
+    }
+
+    .toc-list a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--fg-secondary);
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+
+    .toc-list a:hover {
+      background: var(--bg-secondary);
+      color: var(--accent);
+    }
+
+    .toc-list a.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* ===== TOC SHOW/HIDE ===== */
+    .toc.collapsed {
+      display: none;
+    }
+
+    @media (max-width: 860px) {
+      .license-layout {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+
+      .toc-toggle {
+        display: flex;
+      }
+
+      .toc {
+        position: static;
+        max-height: none;
+      }
+
+      .toc.collapsed {
+        display: none;
+      }
+
+      .toc-close {
+        display: flex;
+      }
+    }
+
+    /* ===== CONTENT ===== */
+    .license-content {
+      min-width: 0;
+    }
+
+    .license-section {
+      margin-bottom: 2.5rem;
+      scroll-margin-top: 80px;
+    }
+
+    .license-section h2 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 800;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--accent);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .license-section h2 .sec-num {
+      font-family: var(--font-ui);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 0.15rem 0.55rem;
+      border-radius: 100px;
+    }
+
+    .license-section h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 1.25rem 0 0.5rem;
+      color: var(--fg);
+    }
+
+    .license-section p {
+      color: var(--fg-secondary);
+      font-size: 0.92rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .license-section ul,
+    .license-section ol {
+      color: var(--fg-secondary);
+      font-size: 0.92rem;
+      padding-left: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .license-section li {
+      margin-bottom: 0.35rem;
+      line-height: 1.65;
+    }
+
+    .license-section li::marker {
+      color: var(--accent);
+    }
+
+    .license-note {
+      background: var(--accent-light);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.88rem;
+      color: var(--fg-secondary);
+      line-height: 1.6;
+    }
+
+    .license-note strong {
+      color: var(--fg);
+    }
+
+    .license-warning {
+      background: rgba(192, 57, 43, 0.06);
+      border-left: 3px solid var(--danger);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.88rem;
+      color: var(--fg-secondary);
+      line-height: 1.6;
+    }
+
+    .license-warning strong {
+      color: var(--danger);
+    }
+
+    .license-info {
+      background: rgba(41, 128, 185, 0.06);
+      border-left: 3px solid var(--info);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.88rem;
+      color: var(--fg-secondary);
+      line-height: 1.6;
+    }
+
+    .license-info strong {
+      color: var(--info);
+    }
+
+    .contact-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      margin-top: 2rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .contact-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .contact-card h3 i {
+      width: 18px;
+      height: 18px;
+      color: var(--accent);
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0;
+      font-size: 0.9rem;
+      color: var(--fg-secondary);
+    }
+
+    .contact-item i {
+      width: 16px;
+      height: 16px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .license-footer {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      border-top: 1px solid var(--border-light);
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .license-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    @media print {
+      .top-bar, .toc, .toc-toggle { display: none !important; }
+      .license-layout { grid-template-columns: 1fr; padding: 0; gap: 0; }
+      .license-hero { padding: 2rem 0 1.5rem; }
+      .license-section { page-break-inside: avoid; }
+      body { color: #000; background: #fff; }
+      .license-section h2 { border-color: #000; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <span class="top-bar-brand">Afro Gallero</span>
+      <span class="top-bar-sep">·</span>
+      <span class="top-bar-title">License Agreement</span>
+    </div>
+    <a href="index.html" class="back-link">
+      <i data-lucide="arrow-left"></i>
+      Back to Gallery
+    </a>
+  </div>
+
+  <!-- Hero -->
+  <div class="license-hero">
+    <div class="license-hero-icon">
+      <i data-lucide="shield-check"></i>
+    </div>
+    <h1>Software License Agreement</h1>
+    <div class="version">
+      <i data-lucide="tag" style="width:13px;height:13px;"></i>
+      Version 7.1
+    </div>
+    <p>By using Afro Gallero, you agree to the terms outlined below. Please read this agreement carefully before using the platform.</p>
+  </div>
+
+  <!-- Meta Bar -->
+  <div class="meta-bar">
+    <div class="meta-item">
+      <i data-lucide="calendar"></i>
+      Effective: <strong>January 1, 2025</strong>
+    </div>
+    <div class="meta-item">
+      <i data-lucide="copyright"></i>
+      &copy; <strong>2025 Afro Gallero</strong>
+    </div>
+    <div class="meta-item">
+      <i data-lucide="scale"></i>
+      Jurisdiction: <strong>Uganda</strong>
+    </div>
+  </div>
+
+  <!-- Layout: TOC + Content -->
+  <div class="license-layout">
+   
+   <!-- TOC toggle button (visible on mobile) -->
+   <button class="toc-toggle" id="tocToggle">
+    <i data-lucide="list"></i>
+    Table of Contents
+    <i data-lucide="chevron-down"></i>
+   </button>
+   
+   <!-- Table of Contents -->
+   <nav class="toc collapsed" id="tocNav">
+    <div class="toc-header">
+     <div class="toc-title">Contents</div>
+     <button class="toc-close" id="tocClose" aria-label="Close table of contents">
+      <i data-lucide="x"></i>
+     </button>
+    </div>
+    <ul class="toc-list">
+     <li><a href="#s1">1. Definitions</a></li>
+     <li><a href="#s2">2. License Grant</a></li>
+     <li><a href="#s3">3. Portfolio Account Terms</a></li>
+     <li><a href="#s4">4. User Accounts</a></li>
+     <li><a href="#s5">5. Intellectual Property</a></li>
+     <li><a href="#s6">6. Analytics & Data</a></li>
+     <li><a href="#s7">7. Disclaimer of Warranties</a></li>
+     <li><a href="#s8">8. Limitation of Liability</a></li>
+     <li><a href="#s9">9. Indemnification</a></li>
+     <li><a href="#s10">10. Termination</a></li>
+     <li><a href="#s11">11. Governing Law</a></li>
+     <li><a href="#s12">12. Modifications</a></li>
+     <li><a href="#s13">13. Contact</a></li>
+    </ul>
+   </nav>
+   
+   <!-- Content -->
+   <div class="license-content">
+    
+    <section class="license-section" id="s1">
+     <h2><span class="sec-num">1</span> Definitions</h2>
+     <p><strong>"Software"</strong> refers to the Afro Gallero web application, including all source code, design assets, configurations, database schemas, and associated documentation.</p>
+     <p><strong>"Licensor"</strong> refers to the copyright holder and owner of the Software.</p>
+     <p><strong>"Licensee"</strong> refers to the individual or entity granted access to the Software under this Agreement.</p>
+     <p><strong>"Portfolio Account"</strong> refers to a subscription-based account that allows artists to host and manage a personal gallery within the Software.</p>
+     <p><strong>"Admin Panel"</strong> refers to the management dashboard accessible only to authorized administrators of the Software.</p>
+    </section>
+    
+    <section class="license-section" id="s2">
+     <h2><span class="sec-num">2</span> License Grant</h2>
+     <p>Subject to the terms and conditions of this Agreement, the Licensor grants the Licensee a <strong>non-exclusive, non-transferable, revocable, limited license</strong> to:</p>
+     <ol>
+      <li>Access and use the Afro Gallero web application for its intended purpose as an art gallery platform.</li>
+      <li>View, browse, and interact with publicly available artwork and artist profiles.</li>
+      <li>Create a registered user account for managing personal preferences, favorites, and order inquiries.</li>
+      <li>Use the Portfolio Account features (if subscribed) to host and manage a personal art gallery.</li>
+     </ol>
+     <div class="license-warning">
+      <strong>This license does NOT include the right to:</strong>
+     </div>
+     <ul>
+      <li>Modify, reverse-engineer, decompile, or disassemble the Software.</li>
+      <li>Copy, duplicate, or redistribute the source code or design assets.</li>
+      <li>Remove, alter, or obscure any copyright notices, trademarks, or attribution within the Software.</li>
+      <li>Use the Software for any unlawful purpose or in any way that violates applicable laws.</li>
+      <li>Resell, sublicense, or lease the Software or any part thereof to third parties.</li>
+      <li>Use automated tools (bots, scrapers, crawlers) to extract data without written consent.</li>
+      <li>Use the Software's name, branding, or visual identity without prior written approval.</li>
+     </ul>
+    </section>
+    
+    <section class="license-section" id="s3">
+     <h2><span class="sec-num">3</span> Portfolio Account Terms</h2>
+     <h3>3.1 Subscription</h3>
+     <p>Portfolio Accounts are offered on a paid subscription basis. The Licensor reserves the right to change pricing with reasonable advance notice, offer promotional pricing at its sole discretion, and suspend or terminate accounts for violation of these terms.</p>
+     <h3>3.2 Content Ownership</h3>
+     <p>The Licensee retains full ownership of all artwork, images, and biographical content uploaded through their Portfolio Account. By uploading content, the Licensee grants the Licensor a <strong>limited, non-exclusive license</strong> to:</p>
+     <ul>
+      <li>Display the content on the Software's public-facing pages.</li>
+      <li>Generate thumbnails and optimized versions for performance purposes.</li>
+      <li>Include the content in search results and browsing features within the Software.</li>
+     </ul>
+     <div class="license-note">
+      <strong>The Licensor does NOT claim ownership, reproduction rights, or distribution rights</strong> beyond what is necessary to operate the Software.
+     </div>
+     <h3>3.3 Content Responsibility</h3>
+     <p>The Licensee is solely responsible for ensuring that all uploaded content:</p>
+     <ul>
+      <li>Does not infringe on the intellectual property rights of any third party.</li>
+      <li>Complies with all applicable laws and regulations.</li>
+      <li>Is not defamatory, obscene, harmful, or otherwise objectionable.</li>
+      <li>Is accurately represented (i.e., the Licensee owns or has rights to the artwork displayed).</li>
+     </ul>
+     <h3>3.4 Content Removal</h3>
+     <p>The Licensor reserves the right to remove any content from a Portfolio Account at any time, with or without notice, if the content is found to violate these terms or applicable law.</p>
+    </section>
+    
+    <section class="license-section" id="s4">
+     <h2><span class="sec-num">4</span> User Accounts and Authentication</h2>
+     <h3>4.1 Registration</h3>
+     <p>Users may create an account by providing accurate and complete information. The Licensee agrees to:</p>
+     <ul>
+      <li>Provide truthful registration information.</li>
+      <li>Maintain the security and confidentiality of account credentials.</li>
+      <li>Notify the Licensor immediately of any unauthorized use of their account.</li>
+      <li>Not share account access with third parties.</li>
+     </ul>
+     <h3>4.2 Data Storage</h3>
+     <p>User account data, including favorites and preferences, is stored securely and associated with the user's authenticated session. The Licensor implements reasonable security measures but does not guarantee absolute data security.</p>
+     <h3>4.3 Account Termination</h3>
+     <p>The Licensor may suspend or terminate a user account at any time for violation of these terms, with or without prior notice.</p>
+    </section>
+    
+    <section class="license-section" id="s5">
+     <h2><span class="sec-num">5</span> Intellectual Property</h2>
+     <h3>5.1 Software</h3>
+     <p>The Software, including all code, design, graphics, icons, typography, layouts, and user interface elements, is the exclusive property of the Licensor and is protected by applicable copyright, trademark, and other intellectual property laws.</p>
+     <h3>5.2 Artwork and User Content</h3>
+     <p>Artwork displayed on the Software remains the property of the respective artists and is protected by their individual copyrights. Users may not download, reproduce, or distribute artwork without explicit permission from the artist.</p>
+     <h3>5.3 Trademarks</h3>
+     <p>"Afro Gallero," the Afro Gallero logo, and all related trademarks are the exclusive property of the Licensor. No license is granted to use these trademarks without written consent.</p>
+    </section>
+    
+    <section class="license-section" id="s6">
+     <h2><span class="sec-num">6</span> Analytics and Data Collection</h2>
+     <p>The Software collects analytics data for the purpose of improving user experience and platform performance. This may include:</p>
+     <ul>
+      <li>Page views and navigation patterns</li>
+      <li>Device information (browser, OS, screen size)</li>
+      <li>Session duration and interaction events</li>
+      <li>Referral sources</li>
+     </ul>
+     <div class="license-info">
+      <strong>Privacy note:</strong> Analytics data is aggregated and anonymized where possible. No personally identifiable information is sold to third parties.
+     </div>
+    </section>
+    
+    <section class="license-section" id="s7">
+     <h2><span class="sec-num">7</span> Disclaimer of Warranties</h2>
+     <div class="license-warning">
+      <strong>THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND</strong>, whether express, implied, statutory, or otherwise, including but not limited to:
+     </div>
+     <ul>
+      <li>Warranties of merchantability</li>
+      <li>Warranties of fitness for a particular purpose</li>
+      <li>Warranties of non-infringement</li>
+      <li>Warranties that the Software will be error-free, uninterrupted, or secure</li>
+     </ul>
+     <p>The Licensee acknowledges that the use of the Software is at their sole risk.</p>
+    </section>
+    
+    <section class="license-section" id="s8">
+     <h2><span class="sec-num">8</span> Limitation of Liability</h2>
+     <div class="license-warning">
+      <strong>TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW:</strong>
+     </div>
+     <ul>
+      <li>The Licensor shall NOT be liable for any direct, indirect, incidental, special, consequential, or punitive damages arising from or related to the use of the Software.</li>
+      <li>The Licensor shall NOT be liable for any loss of data, revenue, or business opportunity resulting from the use of or inability to use the Software.</li>
+      <li>The Licensor's total cumulative liability shall not exceed the amount paid by the Licensee for the Software in the twelve (12) months preceding the claim.</li>
+     </ul>
+    </section>
+    
+    <section class="license-section" id="s9">
+     <h2><span class="sec-num">9</span> Indemnification</h2>
+     <p>The Licensee agrees to indemnify, defend, and hold harmless the Licensor from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable legal fees) arising from:</p>
+     <ul>
+      <li>The Licensee's use of the Software in violation of these terms.</li>
+      <li>Content uploaded by the Licensee through a Portfolio Account.</li>
+      <li>The Licensee's violation of any third-party intellectual property rights.</li>
+      <li>Any dispute between the Licensee and other users of the Software.</li>
+     </ul>
+    </section>
+    
+    <section class="license-section" id="s10">
+     <h2><span class="sec-num">10</span> Termination</h2>
+     <h3>10.1 By Licensee</h3>
+     <p>The Licensee may cease using the Software at any time by discontinuing access and, if applicable, canceling their subscription.</p>
+     <h3>10.2 By Licensor</h3>
+     <p>The Licensor may terminate this license at any time, with or without cause, by providing notice to the Licensee. Upon termination:</p>
+     <ul>
+      <li>All access to the Software shall cease immediately.</li>
+      <li>The Licensor is not obligated to preserve any user data after termination.</li>
+      <li>Provisions that by their nature should survive termination shall remain in effect.</li>
+     </ul>
+     <h3>10.3 Survival</h3>
+     <p>Sections 5, 7, 8, 9, 11, 12, and 13 shall survive termination of this Agreement.</p>
+    </section>
+    
+    <section class="license-section" id="s11">
+     <h2><span class="sec-num">11</span> Governing Law</h2>
+     <p>This Agreement shall be governed by and construed in accordance with the laws of the <strong>Republic of Uganda</strong>, without regard to its conflict of law principles. Any disputes arising from this Agreement shall be resolved through:</p>
+     <ol>
+      <li><strong>Good Faith Negotiation</strong> — The parties shall attempt to resolve the dispute through direct negotiation.</li>
+      <li><strong>Mediation</strong> — If negotiation fails, the parties shall submit to non-binding mediation.</li>
+      <li><strong>Arbitration</strong> — If mediation fails, the dispute shall be resolved by binding arbitration in Kampala, Uganda.</li>
+     </ol>
+    </section>
+    
+    <section class="license-section" id="s12">
+     <h2><span class="sec-num">12</span> Modifications</h2>
+     <p>The Licensor reserves the right to modify this Agreement at any time. Continued use of the Software after modifications are posted constitutes acceptance of the revised terms. The Licensor will make reasonable efforts to notify users of significant changes.</p>
+    </section>
+    
+    <section class="license-section" id="s13">
+     <h2><span class="sec-num">13</span> Contact</h2>
+     <p>For questions or notices regarding this Agreement, contact:</p>
+     <div class="contact-card">
+      <h3><i data-lucide="building-2"></i> Afro Gallero</h3>
+      <div class="contact-item"><i data-lucide="mail"></i> legal@afrogallero.com</div>
+      <div class="contact-item"><i data-lucide="message-circle"></i> WhatsApp: +256 700 000 000</div>
+      <div class="contact-item"><i data-lucide="map-pin"></i> Kampala, Uganda</div>
+     </div>
+    </section>
+    
+   </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="license-footer">
+    <p>&copy; 2025 Afro Gallero. All rights reserved. This license document itself is protected by copyright.</p>
+  </div>
+
+   <script>
+   /* Initialize Lucide icons */
+   lucide.createIcons();
+   
+   /* ===== TOC SHOW/HIDE ===== */
+   const tocNav = document.getElementById('tocNav');
+   const tocToggle = document.getElementById('tocToggle');
+   const tocClose = document.getElementById('tocClose');
+   
+   /* On mobile, TOC starts collapsed */
+   function isMobile() { return window.innerWidth <= 860; }
+   
+   function showToc() {
+    tocNav.classList.remove('collapsed');
+    tocToggle.classList.add('open');
+   }
+   
+   function hideToc() {
+    tocNav.classList.add('collapsed');
+    tocToggle.classList.remove('open');
+   }
+   
+   /* Toggle button opens/closes */
+   tocToggle.addEventListener('click', () => {
+    if (tocNav.classList.contains('collapsed')) {
+     showToc();
+    } else {
+     hideToc();
+    }
+   });
+   
+   /* Close button inside TOC */
+   tocClose.addEventListener('click', hideToc);
+   
+   /* When a TOC link is clicked on mobile, close the TOC */
+   document.querySelectorAll('.toc-list a').forEach(link => {
+    link.addEventListener('click', (e) => {
+     e.preventDefault();
+     const target = document.querySelector(link.getAttribute('href'));
+     if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+     }
+     /* Close TOC on mobile after clicking a link */
+     if (isMobile()) {
+      hideToc();
+     }
+    });
+   });
+   
+   /* On resize: if switching to desktop, show TOC; if mobile, keep current state */
+   window.addEventListener('resize', () => {
+    if (!isMobile()) {
+     tocNav.classList.remove('collapsed');
+     tocToggle.classList.remove('open');
+    }
+   });
+   
+   /* ===== TOC ACTIVE STATE ON SCROLL ===== */
+   const sections = document.querySelectorAll('.license-section');
+   const tocLinks = document.querySelectorAll('.toc-list a');
+   
+   const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+     if (entry.isIntersecting) {
+      const id = entry.target.id;
+      tocLinks.forEach(link => {
+       link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+      });
+     }
+    });
+   }, {
+    rootMargin: '-80px 0px -60% 0px',
+    threshold: 0
+   });
+   
+   sections.forEach(section => observer.observe(section));
+  </script>
+</body>
+</html>

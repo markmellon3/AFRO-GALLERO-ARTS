@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>501 — Server Error — Afro Gallero</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #FAF7F2;
+      --bg-secondary: #F3EDE4;
+      --fg: #1A1A1A;
+      --fg-secondary: #4A4A4A;
+      --muted: #8A8A7A;
+      --accent: #B8860B;
+      --accent-hover: #9A7209;
+      --accent-light: rgba(184, 134, 11, 0.12);
+      --card: #FFFFFF;
+      --border: #E8E2D9;
+      --border-light: #F0EBE3;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+      --shadow-xl: 0 20px 60px rgba(0,0,0,0.15);
+      --danger: #C0392B;
+      --warn: #F39C12;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-ui: 'DM Sans', system-ui, sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0F0F0F;
+      --bg-secondary: #161616;
+      --fg: #F0EBE3;
+      --fg-secondary: #B0ADA6;
+      --muted: #6B6B6B;
+      --accent: #D4A853;
+      --accent-hover: #E0B964;
+      --accent-light: rgba(212, 168, 83, 0.12);
+      --card: #1A1A1A;
+      --border: #2A2A2A;
+      --border-light: #222222;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+      --shadow-xl: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Background */
+    .bg-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .bg-layer::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 60% 40%, rgba(192, 57, 43, 0.04) 0%, transparent 55%),
+                  radial-gradient(ellipse at 30% 60%, var(--accent-light) 0%, transparent 55%);
+      animation: bgPulse 8s ease-in-out infinite alternate;
+    }
+
+    .bg-layer::after {
+      content: '501';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-display);
+      font-size: clamp(15rem, 35vw, 35rem);
+      font-weight: 800;
+      color: var(--border-light);
+      opacity: 0.2;
+      line-height: 1;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    @keyframes bgPulse {
+      0% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
+    /* Glitch Lines */
+    .glitch-lines {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .glitch-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--border);
+      opacity: 0;
+      animation: glitchFlash 4s ease-in-out infinite;
+    }
+
+    .glitch-line:nth-child(1) { top: 20%; animation-delay: 0s; }
+    .glitch-line:nth-child(2) { top: 35%; animation-delay: 0.8s; }
+    .glitch-line:nth-child(3) { top: 55%; animation-delay: 1.6s; }
+    .glitch-line:nth-child(4) { top: 70%; animation-delay: 2.4s; }
+    .glitch-line:nth-child(5) { top: 85%; animation-delay: 3.2s; }
+
+    @keyframes glitchFlash {
+      0%, 90%, 100% { opacity: 0; }
+      92% { opacity: 0.6; background: var(--danger); }
+      94% { opacity: 0; }
+      96% { opacity: 0.4; background: var(--danger); }
+      98% { opacity: 0; }
+    }
+
+    /* Main Container */
+    .error-container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 520px;
+      width: 100%;
+      animation: containerIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes containerIn {
+      from { opacity: 0; transform: translateY(30px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Icon Area */
+    .error-icon-area {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 2rem;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .error-icon-pulse {
+      position: absolute;
+      inset: -12px;
+      border-radius: 50%;
+      border: 2px solid var(--danger);
+      opacity: 0;
+      animation: iconPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes iconPulse {
+      0% { opacity: 0; transform: scale(0.9); }
+      30% { opacity: 0.4; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.3); }
+    }
+
+    .error-icon-inner {
+      width: 80px;
+      height: 80px;
+      background: rgba(192, 57, 43, 0.08);
+      border: 2px solid rgba(192, 57, 43, 0.15);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--danger);
+      position: relative;
+      z-index: 1;
+    }
+
+    .error-icon-inner i {
+      width: 36px;
+      height: 36px;
+    }
+
+    /* Warning stripes */
+    .error-stripe {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .error-stripe::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: -100%;
+      width: 300%;
+      height: 50%;
+      background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 8px,
+        rgba(192, 57, 43, 0.06) 8px,
+        transparent 16px
+      );
+      animation: stripeScroll 3s linear infinite;
+    }
+
+    @keyframes stripeScroll {
+      to { left: 0; }
+    }
+
+    /* Typography */
+    .error-code {
+      font-family: var(--font-display);
+      font-size: clamp(5rem, 18vw, 9rem);
+      font-weight: 800;
+      line-height: 1;
+      color: var(--fg);
+      opacity: 0.06;
+      position: absolute;
+      top: -0.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      user-select: none;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .error-heading {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 0.6rem;
+      color: var(--fg);
+    }
+
+    .error-message {
+      font-size: 1.05rem;
+      color: var(--fg-secondary);
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .error-sub {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+    }
+
+    /* Status Box */
+    .error-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1rem;
+      background: rgba(192, 57, 43, 0.06);
+      border: 1px solid rgba(192, 57, 43, 0.15);
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--danger);
+      margin-bottom: 2rem;
+      animation: statusBlink 2s ease-in-out infinite;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--danger);
+      border-radius: 50%;
+    }
+
+    @keyframes statusBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Auto-retry indicator */
+    .retry-info {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .retry-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Action Buttons */
+    .error-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.7rem 1.5rem;
+      border-radius: var(--radius-md);
+      font-family: var(--font-ui);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      color: var(--fg);
+    }
+
+    .btn i {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--fg-secondary);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-secondary);
+      color: var(--fg);
+      border-color: var(--accent);
+    }
+
+    /* Suggestions */
+    .error-suggestions {
+      margin-top: 2.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .error-suggestions h3 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 0.85rem;
+    }
+
+    .suggestion-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      text-align: left;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    .suggestion-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--fg-secondary);
+      line-height: 1.5;
+    }
+
+    .suggestion-list li i {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+
+    .suggestion-list li .warn-icon {
+      color: var(--warn);
+    }
+
+    .suggestion-list li .info-icon {
+      color: var(--info);
+    }
+
+    /* Footer */
+    .error-footer {
+      position: relative;
+      z-index: 1;
+      margin-top: 3rem;
+    }
+
+    .error-footer a {
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-decoration: none;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+
+    .error-footer a:hover {
+      opacity: 1;
+    }
+
+    @media (max-width: 480px) {
+      .error-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .btn {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background -->
+  <div class="bg-layer"></div>
+  <div class="glitch-lines">
+    <div class="glitch-line"></div>
+    <div class="glitch-line"></div>
+    <div class="glitch-line"></div>
+    <div class="glitch-line"></div>
+    <div class="glitch-line"></div>
+  </div>
+
+  <!-- Content -->
+  <div class="error-container">
+    <div class="error-code">501</div>
+
+    <div class="error-icon-area">
+      <div class="error-icon-pulse"></div>
+      <div class="error-icon-inner">
+        <div class="error-stripe"></div>
+        <i data-lucide="server-crash"></i>
+      </div>
+    </div>
+
+    <h1 class="error-heading">Server Error</h1>
+    <p class="error-message">
+      We're experiencing a server issue right now. Our team has been notified and is working on a fix.
+    </p>
+    <p class="error-sub">Error 501 — Internal Server Error</p>
+
+    <div class="error-status">
+      <span class="status-dot"></span>
+      Service Unavailable
+    </div>
+
+    <div class="retry-info">
+      <div class="retry-spinner"></div>
+      <span>This page will auto-reload when the issue is resolved</span>
+    </div>
+
+    <div class="error-actions">
+      <button class="btn btn-primary" onclick="location.reload()">
+        <i data-lucide="refresh-cw"></i>
+        Try Again
+      </button>
+      <a href="index.html" class="btn btn-ghost">
+        <i data-lucide="home"></i>
+        Go to Gallery
+      </a>
+    </div>
+
+    <div class="error-suggestions">
+      <h3>What to do</h3>
+      <ul class="solution-list">
+        <li><i data-lucide="refresh-cw" class="warn-icon"></i> Wait a few minutes and reload the page</li>
+        <li><i data-lucide="home" class="info-icon"></i> Go to the main gallery and browse from there</li>
+        <li><i data-lucide="clock" class="info-icon"></i> If this persists for more than 10 minutes, try clearing your browser cache</li>
+        <li><i data-lucide="message-circle" class="info-icon"></i> Contact us on WhatsApp to report the issue</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="error-footer">
+    <a href="index.html">Afro Gallero</a>
+  </div>
+
+  <script>
+    /* Init icons */
+    lucide.createIcons();
+
+    /* Auto-reload when server comes back (checks every 30s) */
+    let reloadAttempts = 0;
+    const MAX_ATTEMPTS = 60; // Stop after 30 minutes
+
+    function checkServer() {
+      if (reloadAttempts >= MAX_ATTEMPTS) return;
+
+      fetch(window.location.href, { method: 'HEAD', cache: 'no-store' })
+        .then(res => {
+          if (res.ok) {
+            window.location.reload();
+          } else {
+            reloadAttempts++;
+            setTimeout(checkServer, 30000);
+          }
+        })
+        .catch(() => {
+          reloadAttempts++;
+          setTimeout(checkServer, 30000);
+        });
+    }
+
+    /* Start checking after initial load + 15s delay */
+    setTimeout(checkServer, 15000);
+  </script>
+</body>
+</html>

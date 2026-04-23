@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Cache-Control" content="public, max-age=86400">
+  <title>No Connection — Afro Gallero</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #FAF7F2;
+      --bg-secondary: #F3EDE4;
+      --fg: #1A1A1A;
+      --fg-secondary: #4A4A4A;
+      --muted: #8A8A7A;
+      --accent: #B8860B;
+      --accent-hover: #9A7209;
+      --accent-light: rgba(184, 134, 11, 0.12);
+      --card: #FFFFFF;
+      --border: #E8E2D9;
+      --border-light: #F0EBE3;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+      --info: #2980B9;
+      --success: #27AE60;
+      --warn: #F39C12;
+      --danger: #E74C3C;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-ui: 'DM Sans', system-ui, sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0F0F0F;
+      --bg-secondary: #161616;
+      --fg: #F0EBE3;
+      --fg-secondary: #B0ADA6;
+      --muted: #6B6B6B;
+      --accent: #D4A853;
+      --accent-hover: #E0B964;
+      --accent-light: rgba(212, 168, 83, 0.12);
+      --card: #1A1A1A;
+      --border: #2A2A2A;
+      --border-light: #222222;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+    }
+
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bg-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .bg-layer::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 50% 30%, var(--accent-light) 0%, transparent 60%),
+        radial-gradient(ellipse at 30% 70%, rgba(41, 128, 185, 0.04) 0%, transparent 50%);
+    }
+
+    .waves {
+      position: fixed;
+      bottom: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 0;
+      pointer-events: none;
+      display: flex;
+      gap: 8px;
+    }
+
+    .wave-bar {
+      width: 3px;
+      height: 40px;
+      background: var(--border);
+      border-radius: 100px;
+      opacity: 0;
+      animation: waveAnim 2.5s ease-in-out infinite;
+    }
+
+    .wave-bar:nth-child(1) { animation-delay: 0s; }
+    .wave-bar:nth-child(2) { animation-delay: 0.2s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.4s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.6s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.8s; }
+
+    @keyframes waveAnim {
+      0%, 100% { opacity: 0; height: 20px; }
+      50% { opacity: 0.5; height: 50px; }
+    }
+
+    .dots {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .dot {
+      position: absolute;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--border);
+      opacity: 0;
+      animation: dotFloat linear infinite;
+    }
+
+    .dot:nth-child(1) { left: 12%; top: 18%; animation-duration: 16s; animation-delay: 0s; }
+    .dot:nth-child(2) { left: 78%; top: 25%; animation-duration: 20s; animation-delay: 3s; }
+    .dot:nth-child(3) { left: 22%; top: 72%; animation-duration: 14s; animation-delay: 1s; }
+    .dot:nth-child(4) { left: 65%; top: 78%; animation-duration: 18s; animation-delay: 5s; }
+    .dot:nth-child(5) { left: 45%; top: 45%; animation-duration: 22s; animation-delay: 2s; }
+    .dot:nth-child(6) { left: 88%; top: 55%; animation-duration: 16s; animation-delay: 7s; }
+
+    @keyframes dotFloat {
+      0% { opacity: 0; transform: translateY(0); }
+      20% { opacity: 0.4; }
+      80% { opacity: 0.4; }
+      100% { opacity: 0; transform: translateY(-40px); }
+    }
+
+    .offline-container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 520px;
+      width: 100%;
+      animation: containerIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes containerIn {
+      from { opacity: 0; transform: translateY(25px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .icon-area {
+      width: 130px;
+      height: 130px;
+      margin: 0 auto 2rem;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-glow {
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(41, 128, 185, 0.08) 0%, transparent 70%);
+      animation: glowPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes glowPulse {
+      0%, 100% { opacity: 0.5; transform: scale(0.95); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
+    .icon-circle {
+      width: 88px;
+      height: 88px;
+      background: var(--bg-secondary);
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .icon-circle i {
+      width: 38px;
+      height: 38px;
+      color: var(--muted);
+      transition: color 0.3s;
+    }
+
+    .icon-circle.connected i {
+      color: var(--success);
+    }
+
+    .disconnect-slash {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 60px;
+      height: 3px;
+      background: var(--danger);
+      border-radius: 2px;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      z-index: 2;
+      animation: slashAppear 0.5s 0.3s ease-out both;
+      transition: opacity 0.3s;
+    }
+
+    .disconnect-slash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @keyframes slashAppear {
+      from { opacity: 0; width: 0; }
+      to { opacity: 1; width: 60px; }
+    }
+
+    .ghost-code {
+      font-family: var(--font-display);
+      font-size: clamp(4rem, 14vw, 7rem);
+      font-weight: 800;
+      line-height: 1;
+      color: var(--fg);
+      opacity: 0.04;
+      position: absolute;
+      top: -0.3rem;
+      left: 50%;
+      transform: translateX(-50%);
+      user-select: none;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .offline-heading {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+      color: var(--fg);
+    }
+
+    .offline-message {
+      font-size: 1.05rem;
+      color: var(--fg-secondary);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .status-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow-sm);
+      text-align: left;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--danger);
+      flex-shrink: 0;
+      animation: dotBlink 2s ease-in-out infinite;
+    }
+
+    @keyframes dotBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    .status-label {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--danger);
+    }
+
+    .status-sub {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .check-icon {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
+
+    .check-icon.ok {
+      border-color: var(--success);
+      background: var(--success);
+    }
+
+    .check-icon.ok i {
+      color: #fff;
+    }
+
+    .check-icon.ok .check-x {
+      display: none;
+    }
+
+    .check-icon.ok .check-check {
+      display: block;
+    }
+
+    .check-x {
+      display: block;
+    }
+
+    .check-check {
+      display: none;
+    }
+
+    .check-icon i {
+      width: 10px;
+      height: 10px;
+      color: var(--muted);
+    }
+
+    .check-text {
+      transition: color 0.3s;
+    }
+
+    .check-text.ok {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.7rem 1.5rem;
+      border-radius: var(--radius-md);
+      font-family: var(--font-ui);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      color: var(--fg);
+    }
+
+    .btn i {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--fg-secondary);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-secondary);
+      color: var(--fg);
+      border-color: var(--accent);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .suggestions {
+      margin-top: 2.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .suggestions h3 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 0.85rem;
+    }
+
+    .suggestion-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      text-align: left;
+      max-width: 380px;
+      margin: 0 auto;
+    }
+
+    .suggestion-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--fg-secondary);
+      line-height: 1.5;
+    }
+
+    .suggestion-list li i {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+
+    .offline-footer {
+      position: relative;
+      z-index: 1;
+      margin-top: 3rem;
+    }
+
+    .offline-footer a {
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-decoration: none;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+
+    .offline-footer a:hover {
+      opacity: 1;
+    }
+
+    .recovery-toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      z-index: 100;
+      background: var(--card);
+      border: 1px solid var(--success);
+      border-radius: var(--radius-lg);
+      padding: 0.85rem 1.5rem;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--fg);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .recovery-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+
+    .recovery-toast .toast-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(39, 174, 96, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--success);
+      flex-shrink: 0;
+    }
+
+    .recovery-toast .toast-icon i {
+      width: 16px;
+      height: 16px;
+    }
+
+    .recovery-toast .toast-text {
+      font-size: 0.88rem;
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .recovery-toast .toast-sub {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .recovery-progress {
+      width: 100%;
+      height: 3px;
+      background: var(--border-light);
+      border-radius: 100px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+    }
+
+    .recovery-fill {
+      height: 100%;
+      background: var(--success);
+      border-radius: 100px;
+      width: 0%;
+      transition: width 3s ease-out;
+    }
+
+    @media (max-width: 480px) {
+      .actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .btn {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-layer"></div>
+  <div class="waves">
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+  </div>
+  <div class="dots">
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+  </div>
+
+  <div class="offline-container">
+    <div class="ghost-code">OFFLINE</div>
+
+    <div class="icon-area">
+      <div class="icon-glow"></div>
+      <div class="icon-circle" id="iconCircle">
+        <div class="disconnect-slash" id="disconnectSlash"></div>
+        <i data-lucide="wifi-off"></i>
+      </div>
+    </div>
+
+    <h1 class="offline-heading">No Internet Connection</h1>
+    <p class="offline-message">
+      It looks like you've lost your connection. Don't worry — your artwork is safe and waiting for you.
+    </p>
+
+    <div class="status-card" id="statusCard">
+      <div class="status-row" id="statusRow">
+        <span class="status-dot"></span>
+        <span class="status-label">Disconnected</span>
+      </div>
+
+      <div class="check-row">
+        <div class="check-icon" id="connectionCheck">
+          <i data-lucide="x" class="check-x"></i>
+          <i data-lucide="check" class="check-check"></i>
+        </div>
+        <span class="check-text" id="connectionText">Checking connection...</span>
+      </div>
+
+      <div class="check-row">
+        <div class="check-icon" id="firebaseCheck">
+          <i data-lucide="x" class="check-x"></i>
+          <i data-lucide="check" class="check-check"></i>
+        </div>
+        <span class="check-text" id="firebaseText">Checking Firebase...</span>
+      </div>
+
+      <div class="check-row">
+        <div class="check-icon" id="reloadCheck">
+          <i data-lucide="x" class="check-x"></i>
+          <i data-lucide="check" class="check-check"></i>
+        </div>
+        <span class="check-text" id="reloadText">Waiting...</span>
+      </div>
+    </div>
+
+    <div class="actions" id="actionsDiv">
+      <button class="btn btn-primary" id="retryBtn">
+        <i data-lucide="refresh-cw"></i>
+        Retry Now
+      </button>
+      <button class="btn btn-ghost" id="goBackBtn">
+        <i data-lucide="arrow-left"></i>
+        Go Back
+      </button>
+    </div>
+
+    <div class="suggestions" id="suggestionsDiv">
+      <h3>What you can try</h3>
+      <ul class="suggestion-list">
+        <li><i data-lucide="wifi" style="color:var(--info)"></i> Check if Wi-Fi or mobile data is turned on</li>
+        <li><i data-lucide="router" style="color:var(--info)"></i> Restart your router or modem</li>
+        <li><i data-lucide="refresh-cw" style="color:var(--info)"></i> Refresh the page after restoring connection</li>
+        <li><i data-lucide="globe" style="color:var(--info)"></i> Try opening a different website to confirm the issue</li>
+        <li><i data-lucide="shield-check" style="color:var(--info)"></i> Disable any VPN or proxy that might be active</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="recovery-toast" id="recoveryToast">
+    <div class="toast-icon">
+      <i data-lucide="wifi"></i>
+    </div>
+    <div>
+      <div class="toast-text">Connection Restored!</div>
+      <div class="toast-sub">Reloading in 3 seconds...</div>
+    </div>
+    <div class="recovery-progress">
+      <div class="recovery-fill" id="recoveryFill"></div>
+    </div>
+  </div>
+
+  <div class="offline-footer">
+    <a href="index.html">Afro Gallero</a>
+  </div>
+
+  <script>
+    /* Initialize Lucide icons */
+    lucide.createIcons();
+
+    /* DOM references */
+    var iconCircle = document.getElementById('iconCircle');
+    var disconnectSlash = document.getElementById('disconnectSlash');
+    var connectionCheck = document.getElementById('connectionCheck');
+    var connectionText = document.getElementById('connectionText');
+    var firebaseCheck = document.getElementById('firebaseCheck');
+    var firebaseText = document.getElementById('firebaseText');
+    var reloadCheck = document.getElementById('reloadCheck');
+    var reloadText = document.getElementById('reloadText');
+    var retryBtn = document.getElementById('retryBtn');
+    var goBackBtn = document.getElementById('goBackBtn');
+    var recoveryToast = document.getElementById('recoveryToast');
+    var recoveryFill = document.getElementById('recoveryFill');
+    var statusRow = document.getElementById('statusRow');
+    var actionsDiv = document.getElementById('actionsDiv');
+    var suggestionsDiv = document.getElementById('suggestionsDiv');
+
+    var failCount = 0;
+    var MAX_FAILS = 5;
+    var isRecovering = false;
+    var checkTimer = null;
+
+    /* Helper: mark a check row as passed */
+    function markOk(iconEl, textEl, text) {
+      iconEl.classList.add('ok');
+      textEl.textContent = text;
+      textEl.classList.add('ok');
+    }
+
+    /* Helper: mark a check row as failed */
+    function markFail(iconEl, textEl, text) {
+      iconEl.classList.remove('ok');
+      textEl.textContent = text;
+      textEl.classList.remove('ok');
+    }
+
+    /* Step 1: Check basic internet connectivity via navigator.onLine */
+    function checkConnection() {
+      if (isRecovering) return;
+
+      markFail(connectionCheck, connectionText, 'Checking connection...');
+
+      if (navigator.onLine) {
+        /* Browser reports online — move to Firebase check */
+        markOk(connectionCheck, connectionText, 'Connected');
+        disconnectSlash.classList.add('hidden');
+        iconCircle.classList.add('connected');
+        failCount = 0;
+        setTimeout(checkFirebase, 400);
+      } else {
+        /* Browser reports offline — wait and listen */
+        markFail(connectionCheck, connectionText, 'No internet detected');
+
+        /* Set up one-time listener for the 'online' event */
+        window.addEventListener('online', function onOnline() {
+          window.removeEventListener('online', onOnline);
+          if (!isRecovering) {
+            markOk(connectionCheck, connectionText, 'Connected');
+            disconnectSlash.classList.add('hidden');
+            iconCircle.classList.add('connected');
+            failCount = 0;
+            setTimeout(checkFirebase, 400);
+          }
+        });
+
+        /* Retry check after 4 seconds if still offline */
+        checkTimer = setTimeout(function() {
+          if (!connectionCheck.classList.contains('ok') && !isRecovering) {
+            checkConnection();
+          }
+        }, 4000);
+      }
+    }
+
+    /* Step 2: Verify Firebase is reachable */
+    function checkFirebase() {
+      if (isRecovering) return;
+
+      markFail(firebaseCheck, firebaseText, 'Checking Firebase...');
+
+      fetch('https://auther-afro-gallero.firebaseio.com/.json', {
+        method: 'HEAD',
+        cache: 'no-store'
+      }).then(function(res) {
+        /* 200, 401, 403 all mean the server is up */
+        if (res.ok || res.status === 401 || res.status === 403) {
+          markOk(firebaseCheck, firebaseText, 'Firebase OK');
+          scheduleReload();
+        } else {
+          handleFirebaseFail('Unexpected status: ' + res.status);
+        }
+      }).catch(function() {
+        handleFirebaseFail('No response');
+      });
+    }
+
+    function handleFirebaseFail(reason) {
+      if (isRecovering) return;
+
+      failCount++;
+      markFail(firebaseCheck, firebaseText, 'No response');
+
+      if (failCount < MAX_FAILS) {
+        /* Retry after 5 seconds */
+        checkTimer = setTimeout(checkFirebase, 5000);
+      } else {
+        /* Give up — show support option */
+        showCustomerService();
+      }
+    }
+
+    /* Step 3: Connection is good — prepare to reload */
+    function scheduleReload() {
+      if (isRecovering) return;
+      isRecovering = true;
+
+      failCount = 0;
+      markOk(reloadCheck, reloadText, 'Preparing reload...');
+
+      setTimeout(function() {
+        markOk(reloadCheck, reloadText, 'Reloading...');
+
+        /* Show the recovery toast */
+        recoveryToast.classList.add('show');
+
+        /* Start the progress bar animation */
+        requestAnimationFrame(function() {
+          recoveryFill.style.width = '100%';
+        });
+
+        /* Navigate away after 3 seconds */
+        setTimeout(function() {
+          window.location.href = 'index.html';
+        }, 3000);
+      }, 500);
+    }
+
+    /* Fallback: show customer support after too many failures */
+    function showCustomerService() {
+      failCount = 0;
+
+      markFail(connectionCheck, connectionText, 'Connection issue persists');
+      markFail(firebaseCheck, firebaseText, 'Firebase unreachable');
+      markFail(reloadCheck, reloadText, 'Aborted');
+
+      /* Update status row */
+      statusRow.innerHTML =
+        '<span class="status-dot" style="background:var(--warn);animation:none;"></span>' +
+        '<span class="status-label" style="color:var(--warn);">Still Unreachable</span>';
+
+      /* Replace action buttons */
+      actionsDiv.innerHTML =
+        '<button class="btn btn-primary" id="supportBtn">' +
+          '<i data-lucide="headphones" style="width:16px;height:16px;"></i> Contact Support' +
+        '</button>' +
+        '<a href="index.html" class="btn btn-ghost">' +
+          '<i data-lucide="home" style="width:16px;height:16px;"></i> Go to Gallery' +
+        '</a>';
+
+      /* Re-initialize Lucide for new icons */
+      lucide.createIcons({ nodes: actionsDiv });
+
+      /* Wire up the new support button */
+      var supportBtn = document.getElementById('supportBtn');
+      if (supportBtn) {
+        supportBtn.addEventListener('click', openCustomerService);
+      }
+
+      /* Hide suggestions to reduce clutter */
+      if (suggestionsDiv) {
+        suggestionsDiv.style.display = 'none';
+      }
+    }
+
+    /* Open WhatsApp support */
+    function openCustomerService() {
+      var msg = 'Hi, I am unable to connect to Afro Gallero. The connection check keeps failing. Please assist.';
+      window.open(
+        'https://wa.me/25670000000000?text=' + encodeURIComponent(msg),
+        '_blank'
+      );
+    }
+
+    /* Reset all check rows to initial state */
+    function resetChecks() {
+      isRecovering = false;
+      failCount = 0;
+
+      markFail(connectionCheck, connectionText, 'Checking connection...');
+      markFail(firebaseCheck, firebaseText, 'Checking Firebase...');
+      markFail(reloadCheck, reloadText, 'Waiting...');
+
+      disconnectSlash.classList.remove('hidden');
+      iconCircle.classList.remove('connected');
+
+      recoveryToast.classList.remove('show');
+      recoveryFill.style.width = '0%';
+
+      if (checkTimer) {
+        clearTimeout(checkTimer);
+        checkTimer = null;
+      }
+    }
+
+    /* Retry button */
+    retryBtn.addEventListener('click', function() {
+      resetChecks();
+      setTimeout(checkConnection, 300);
+    });
+
+    /* Go Back button */
+    goBackBtn.addEventListener('click', function() {
+      history.back();
+    });
+
+    /* Kick off the check chain after a short delay */
+    setTimeout(checkConnection, 800);
+  </script>
+</body>
+</html>

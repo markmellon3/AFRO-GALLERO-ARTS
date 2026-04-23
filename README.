@@ -1,0 +1,44 @@
+
+
+Afro Gallero
+
+Contemporary African Art Gallery Platform
+
+A real-time, multi-language, dark-mode art gallery web application built with vanilla JavaScript, Firebase Realtime Database, and a refined warm aesthetic. Designed for artists to showcase, sell, and manage their portfolios with zero frameworks.
+
+LicenseFirebaseLanguages
+
+📖 About
+
+Afro Gallero is a high-performance, offline-ready web gallery designed to showcase and sell contemporary African art. It merges artworks from multiple Firebase databases in real-time, supports 4 languages and 5 currencies, and features a comprehensive admin dashboard with built-in analytics—all without a single framework dependency.
+
+✨ Key Features
+
+🎨 Real-Time Dual-DB Sync — Merges artworks from two separate Firebase projects instantly.
+🌙 Dark/Light Theme — System-aware theme switching with smooth CSS variable transitions.
+🌍 4 Languages — English, Swahili, French, and Luganda.
+💱 5 Currencies — UGX, USD, EUR, GBP, KES with live exchange rates.
+🔍 Instant Search — Real-time search table with artwork previews directly in the results.
+🖼️ Viewing Room — Fullscreen immersive viewer with keyboard navigation.
+⏳ Live Auctions — Real-time countdown timers and bid tracking.
+❤️ User Favorites — Auth-bound favorites stored in Firebase, not localStorage.
+📊 Built-in Analytics — Fingerprint-based unique visitors, click tracking, session duration, device/browser stats, referrers, and real-time active user presence.
+🛡️ Maintenance Mode — One-click toggle with custom messages and auto-redirect.
+📱 Fully Responsive — Mobile-first design that scales seamlessly to desktop.
+🛠️ Tech Stack
+
+Category Technology
+Core Vanilla JavaScript (ES6+), No Frameworks
+Styling Custom CSS (Variables, Grid, Flexbox)
+Database Firebase Realtime Database (3 Projects)
+Auth Firebase Authentication (Email + Google)
+Icons Lucide Icons
+Charts Chart.js 4
+Fonts Playfair Display (Serif), DM Sans (Sans-serif)
+🚀 Quick Start
+
+Prerequisites
+
+A code editor (VS Code recommended)
+A browser (Chrome, Firefox, Safari)
+Three Firebase projects (or modify the configs to use fewer)
