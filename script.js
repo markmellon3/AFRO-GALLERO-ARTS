@@ -1816,141 +1816,168 @@ const SiteAnalytics = (function () {
   let fp = null;
   let sid = null;
   let startTs = 0;
-  let clicks = 0;
   let flushed = false;
   let presRef = null;
   let eventQueue = [];
   let flushTimer = null;
+  let clickFlushTimer = null;
 
   function enqueue(event) {
-    eventQueue.push({ ...event, ts: Date.now(), fp, sid, dev: getDevice(), brw: getBrowser(), os: getOS(), scr: screen.width + 'x' + screen.height, ref: getReferrer() });
+    eventQueue.push({
+      ...event,
+      ts: Date.now(),
+      fp: fp,
+      sid: sid,
+      dev: getDevice(),
+      brw: getBrowser(),
+      os: getOS(),
+      scr: screen.width + 'x' + screen.height,
+      ref: getReferrer()
+    });
     if (eventQueue.length >= 50) flushQueue();
+  }
+
+  /* Transaction-only counter increment — never overwrites */
+  function safeTx(path, delta) {
+    if (!db) return;
+    try {
+      db.ref(path).transaction(function (v) {
+        return (v || 0) + delta;
+      });
+    } catch (e) { /* silent */ }
+  }
+
+  /* Trim the recent-events node to 100 entries max */
+  function trimRecent() {
+    if (!db) return;
+    db.ref('analytics/recent').orderByKey().limitToFirst(200).once('value').then(function (snap) {
+      var data = snap.val();
+      if (data) {
+        var keys = Object.keys(data);
+        if (keys.length > 100) {
+          var toRemove = keys.slice(0, keys.length - 100);
+          var deletes = {};
+          toRemove.forEach(function (k) { deletes['analytics/recent/' + k] = null; });
+          db.ref().update(deletes).catch(function () {});
+        }
+      }
+    }).catch(function () {});
   }
 
   function flushQueue() {
     if (!db || eventQueue.length === 0) return;
-    const batch = eventQueue.splice(0, eventQueue.length);
-    const td = todayKey();
+    var batch = eventQueue.splice(0, eventQueue.length);
+    var td = todayKey();
 
     /* Aggregate from batch */
-    let views = 0, clickCount = 0;
-    const pageViews = {};
-    const clickDetails = [];
-    const referrers = {};
-    const devices = {};
-    const browsers = {};
+    var views = 0, clickCount = 0;
+    var pageViews = {};
+    var pageClicks = {};
+    var clickDetails = [];
+    var referrers = {};
+    var devices = {};
+    var browsers = {};
 
-    batch.forEach(ev => {
+    batch.forEach(function (ev) {
       if (ev.type === 'view') {
         views++;
         pageViews[ev.page] = (pageViews[ev.page] || 0) + 1;
       }
       if (ev.type === 'click') {
         clickCount++;
-        clickDetails.push({ page: ev.page, label: (ev.label || '').substring(0, 80), dev: ev.dev, brw: ev.brw, ts: ev.ts });
+        pageClicks[ev.page] = (pageClicks[ev.page] || 0) + 1;
+        clickDetails.push({
+          page: ev.page,
+          label: (ev.label || '').substring(0, 80),
+          dev: ev.dev,
+          brw: ev.brw,
+          ts: ev.ts
+        });
       }
       if (ev.ref) referrers[ev.ref] = (referrers[ev.ref] || 0) + 1;
       devices[ev.dev] = (devices[ev.dev] || 0) + 1;
       browsers[ev.brw] = (browsers[ev.brw] || 0) + 1;
     });
 
-    const updates = {};
+    /* Only non-counter data goes into .update() — never counters */
+    var updates = {};
 
-    /* Daily counters */
-    updates[`analytics/daily/${td}/views`] = (views > 0) ? views : null;
-    updates[`analytics/daily/${td}/clicks`] = (clickCount > 0) ? clickCount : null;
-
-    /* Per-page views */
-    Object.entries(pageViews).forEach(([pg, cnt]) => {
-      updates[`analytics/pages/${pg}/views`] = cnt;
-    });
-
-    /* Referrers */
-    Object.entries(referrers).forEach(([ref, cnt]) => {
-      updates[`analytics/referrers/${ref}`] = cnt;
-    });
-
-    /* Devices */
-    Object.entries(devices).forEach(([dev, cnt]) => {
-      updates[`analytics/devices/${dev}`] = cnt;
-    });
-
-    /* Browsers */
-    Object.entries(browsers).forEach(([brw, cnt]) => {
-      updates[`analytics/browsers/${brw}`] = cnt;
-    });
-
-    /* Session data */
-    const dur = Math.round((Date.now() - startTs) / 1000);
+    /* Session duration (set, not increment — stores latest value) */
+    var dur = Math.round((Date.now() - startTs) / 1000);
     if (dur >= 2) {
-      updates[`analytics/daily/${td}/sessions`] = 1;
-      updates[`analytics/daily/${td}/duration`] = dur;
+      updates['analytics/daily/' + td + '/duration'] = dur;
+      safeTx('analytics/daily/' + td + '/sessions', 1);
     }
 
-    /* Recent activity (keep last 100) */
-    const recentSlice = clickDetails.slice(-20);
-    recentSlice.forEach(ev => {
-      const ref = db.ref('analytics/recent').push();
-      updates[`analytics/recent/${ref.key}`] = ev;
+    /* Recent click events (push keys) */
+    var recentSlice = clickDetails.slice(-20);
+    recentSlice.forEach(function (ev) {
+      var pushRef = db.ref('analytics/recent').push();
+      updates['analytics/recent/' + pushRef.key] = ev;
     });
 
-    /* Multi-path update */
-    db.ref().update(updates).catch(() => {});
+    /* Write non-counter data in one batch */
+    if (Object.keys(updates).length > 0) {
+      db.ref().update(updates).catch(function () {});
+    }
 
-    /* Also do transaction-based increments for accurate counters */
-    if (views > 0) safeTx(`analytics/daily/${td}/views`, views);
-    if (clickCount > 0) safeTx(`analytics/daily/${td}/clicks`, clickCount);
-    Object.entries(pageViews).forEach(([pg, cnt]) => safeTx(`analytics/pages/${pg}/views`, cnt));
+    /* ALL numeric counters use transactions exclusively — no overwriting, no null-deletes */
+    if (views > 0) safeTx('analytics/daily/' + td + '/views', views);
+    if (clickCount > 0) safeTx('analytics/daily/' + td + '/clicks', clickCount);
 
-    /* Limit recent to 100 entries */
-    db.ref('analytics/recent').orderByKey().limitToFirst(200).once('value').then(snap => {
-      const data = snap.val();
-      if (data) {
-        const keys = Object.keys(data);
-        if (keys.length > 100) {
-          const toRemove = keys.slice(0, keys.length - 100);
-          const deletes = {};
-          toRemove.forEach(k => deletes[`analytics/recent/${k}`] = null);
-          db.ref().update(deletes).catch(() => {});
-        }
-      }
-    }).catch(() => {});
-  }
+    Object.keys(pageViews).forEach(function (pg) {
+      safeTx('analytics/pages/' + pg + '/views', pageViews[pg]);
+    });
+    Object.keys(pageClicks).forEach(function (pg) {
+      safeTx('analytics/pages/' + pg + '/clicks', pageClicks[pg]);
+    });
+    Object.keys(referrers).forEach(function (ref) {
+      safeTx('analytics/referrers/' + ref, referrers[ref]);
+    });
+    Object.keys(devices).forEach(function (dev) {
+      safeTx('analytics/devices/' + dev, devices[dev]);
+    });
+    Object.keys(browsers).forEach(function (brw) {
+      safeTx('analytics/browsers/' + brw, browsers[brw]);
+    });
 
-  function safeTx(path, delta) {
-    if (!db) return;
-    try { db.ref(path).transaction(v => (v || 0) + delta); } catch (e) { /* silent */ }
+    /* Prune old recent entries */
+    trimRecent();
   }
 
   function trackVisit(isNew) {
     if (!db) return;
-    const pg = pageName();
-    const td = todayKey();
+    var pg = pageName();
+    var td = todayKey();
 
     /* Unique daily visitor (once per fingerprint per day) */
-    const dk = `adv_${td}_${fp}`;
+    var dk = 'adv_' + td + '_' + fp;
     if (!sessionStorage.getItem(dk)) {
       sessionStorage.setItem(dk, '1');
-      safeTx(`analytics/daily/${td}/visitors`, 1);
-      safeTx(`analytics/daily/${td}/${isNew ? 'newVisitors' : 'returningVisitors'}`, 1);
+      safeTx('analytics/daily/' + td + '/visitors', 1);
+      safeTx('analytics/daily/' + td + '/' + (isNew ? 'newVisitors' : 'returningVisitors'), 1);
     }
 
     /* Unique page visitor */
-    const pk = `apv_${pg}_${fp}`;
+    var pk = 'apv_' + pg + '_' + fp;
     if (!sessionStorage.getItem(pk)) {
       sessionStorage.setItem(pk, '1');
-      safeTx(`analytics/pages/${pg}/visitors`, 1);
+      safeTx('analytics/pages/' + pg + '/visitors', 1);
     }
 
-    /* First visit flag */
+    /* First visit fingerprint record (write once) */
     if (isNew) {
       db.ref('analytics/fingerprints/' + fp).set({
-        firstSeen: Date.now(), dev: getDevice(), brw: getBrowser(),
-        os: getOS(), scr: screen.width + 'x' + screen.height, ref: getReferrer()
-      }).catch(() => {});
+        firstSeen: Date.now(),
+        dev: getDevice(),
+        brw: getBrowser(),
+        os: getOS(),
+        scr: screen.width + 'x' + screen.height,
+        ref: getReferrer()
+      }).catch(function () {});
     }
 
-    enqueue({ type: 'view', page: pg, isNew });
+    enqueue({ type: 'view', page: pg, isNew: isNew });
   }
 
   function flush() {
@@ -1964,10 +1991,10 @@ const SiteAnalytics = (function () {
     presRef = db.ref('analytics/live/' + fp);
     presRef.onDisconnect().remove();
     presRef.set({ pg: pageName(), dev: getDevice(), brw: getBrowser(), t: Date.now() });
-    const hb = setInterval(() => {
+    var hb = setInterval(function () {
       try { presRef.update({ pg: pageName(), t: Date.now() }); } catch (e) { clearInterval(hb); }
     }, 25000);
-    window.addEventListener('hashchange', () => {
+    window.addEventListener('hashchange', function () {
       try { presRef.update({ pg: pageName(), t: Date.now() }); } catch (e) { /* */ }
     });
   }
@@ -1977,17 +2004,23 @@ const SiteAnalytics = (function () {
     if (!db) return;
     fp = getFingerprint();
     sid = getSessionId();
-    const isNew = isFirstVisit();
+    var isNew = isFirstVisit();
     startTs = Date.now();
 
     trackVisit(isNew);
 
-    window.addEventListener('hashchange', () => trackVisit(false));
+    window.addEventListener('hashchange', function () {
+      trackVisit(false);
+    });
 
-    document.addEventListener('click', (e) => {
-      const el = e.target.closest('button, a, .artwork-card, .artist-profile-card, .nav-link, .btn, [role="button"], .search-view-btn, .dropdown-item, .tab');
+    document.addEventListener('click', function (e) {
+      var el = e.target.closest(
+        'button, a, .artwork-card, .artist-profile-card, .nav-link, ' +
+        '.btn, [role="button"], .search-view-btn, .dropdown-item, .tab'
+      );
       if (!el) return;
-      let lbl = '';
+
+      var lbl = '';
       if (el.dataset.id) lbl = el.dataset.id;
       else if (el.dataset.artworkId) lbl = el.dataset.artworkId;
       else if (el.dataset.artist) lbl = el.dataset.artist;
@@ -1998,46 +2031,43 @@ const SiteAnalytics = (function () {
       else if (el.textContent) lbl = el.textContent.trim().substring(0, 80);
       else if (el.getAttribute('aria-label')) lbl = el.getAttribute('aria-label');
       if (!lbl) lbl = el.tagName.toLowerCase();
+
       enqueue({ type: 'click', page: pageName(), label: lbl });
+
+      /* Flush clicks after 2 seconds of inactivity so data appears fast */
+      clearTimeout(clickFlushTimer);
+      clickFlushTimer = setTimeout(flushQueue, 2000);
     });
 
     setupPresence();
 
     flushTimer = setInterval(flushQueue, 30000);
     window.addEventListener('beforeunload', flush);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushQueue(); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') flushQueue();
+    });
   }
 
-  return { init };
+  return { init: init };
 })();
 
 
-! function() {
-  // 1. Don't run on admin pages
+!function () {
+  /* Don't run on admin pages */
   if (location.pathname.includes('admin')) return;
-  
+
   function handleConnection() {
-    // 2. If we are ONLINE and currently on the offline page...
     if (navigator.onLine && location.pathname.includes('offline')) {
-      // Go back to the main website
       window.location.replace('index.html');
-    }
-    // 3. If we are OFFLINE and NOT on the offline page yet...
-    else if (!navigator.onLine && !location.pathname.includes('offline')) {
-      // Go to the offline page
+    } else if (!navigator.onLine && !location.pathname.includes('offline')) {
       window.location.replace('offline.html');
     }
   }
-  
-  // 4. Check immediately (handles page reloads)
+
   handleConnection();
-  
-  // 5. Listen for changes (handles real-time internet drops/returns)
   window.addEventListener('online', handleConnection);
   window.addEventListener('offline', handleConnection);
-  
 }();
-
 
 /* ============================================
    MASTER INITIALIZATION
