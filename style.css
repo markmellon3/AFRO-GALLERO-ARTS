@@ -1341,3 +1341,36 @@ ul, ol { list-style: none; }
 .gallery-empty p {
   font-size: 1rem;
 }
+/* Viewing Room — active card highlight */
+.vr-card-active {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+.vr-viewing-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  z-index: 2;
+  pointer-events: none;
+  animation: vrBadgePulse 2s ease-in-out infinite;
+}
+
+@keyframes vrBadgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* When in fullscreen mode, hide the grid below */
+#vrContainer.fullscreen #vrGallerySection {
+  display: none;
+} 
