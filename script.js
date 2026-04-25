@@ -21,6 +21,16 @@ const DATA_CONFIG_2 = {
   measurementId: "G-YQGDEV5DCJ"
 };
 
+const DATA_CONFIG_3 = {
+  apiKey: "AIzaSyApiNqqM44cxq6Wcpy769YXW6_dDIpVj-M",
+  authDomain: "user3-afro-gallero.firebaseapp.com",
+  projectId: "user3-afro-gallero",
+  storageBucket: "user3-afro-gallero.firebasestorage.app",
+  messagingSenderId: "87417805369",
+  appId: "1:87417805369:web:72f1f3d6c1f3e244ac8be8",
+  measurementId: "G-4XZY1QC68E"
+};
+
 const AUTH_CONFIG = {
   apiKey: "AIzaSyC483ZOHvItMVBCe1HufHO39FyYVlNDPLU",
   authDomain: "auther-afro-gallero.firebaseapp.com",
@@ -53,10 +63,12 @@ function initFirebaseApp(name, config) {
 
 initFirebaseApp('data', DATA_CONFIG);
 initFirebaseApp('data2', DATA_CONFIG_2);
+initFirebaseApp('data3', DATA_CONFIG_3);
 initFirebaseApp('auth', AUTH_CONFIG);
 
 const db = FBApps.data?.db;
 const db2 = FBApps.data2?.db;
+const db3 = FBApps.data3?.db;
 const auth = FBApps.auth?.auth;
 const authDb = FBApps.auth?.db;
 
@@ -119,6 +131,7 @@ let allArtworks = [];
 let allCategories = [];
 let db1Artworks = [];
 let db2Artworks = [];
+let db3Artworks = [];
 
 const AppState = {
   baseCurrency: 'UGX',
@@ -810,29 +823,38 @@ function handleHash() {
 }
 
 /* ============================================
-   FIREBASE: DUAL DB DATA SYNCING & MERGING
+   FIREBASE: MULTI-DB DATA SYNCING & MERGING
    ============================================ */
 async function fetchFromBothDbs(path, isObjectMapping = true) {
   let results = [];
   const promises = [];
-  if (db) {
-    promises.push(db.ref(path).once('value').then(snap => {
-      const data = snap.val();
-      if (data) {
-        if (isObjectMapping) Object.entries(data).forEach(([id, val]) => { if (val && typeof val === 'object') results.push({ id: `db1:${id}`, ...val, _source: 'db1' }); });
-        else Object.values(data).forEach(val => { if (val && typeof val === 'object') results.push({ ...val, _source: 'db1' }); });
-      }
-    }));
-  }
-  if (db2) {
-    promises.push(db2.ref(path).once('value').then(snap => {
-      const data = snap.val();
-      if (data) {
-        if (isObjectMapping) Object.entries(data).forEach(([id, val]) => { if (val && typeof val === 'object') results.push({ id: `db2:${id}`, ...val, _source: 'db2' }); });
-        else Object.values(data).forEach(val => { if (val && typeof val === 'object') results.push({ ...val, _source: 'db2' }); });
-      }
-    }).catch(err => console.warn(`DB2 fetch failed for ${path}`, err)));
-  }
+  const dbs = [
+    { ref: db, source: 'db1', label: 'DB1' },
+    { ref: db2, source: 'db2', label: 'DB2' },
+    { ref: db3, source: 'db3', label: 'DB3' }
+  ];
+  dbs.forEach(({ ref, source, label }) => {
+    if (!ref) return;
+    promises.push(
+      ref.ref(path).once('value').then(snap => {
+        const data = snap.val();
+        if (!data) return;
+        if (isObjectMapping) {
+          Object.entries(data).forEach(([id, val]) => {
+            if (val && typeof val === 'object') {
+              results.push({ id: `${source}:${id}`, ...val, _source: source });
+            }
+          });
+        } else {
+          Object.values(data).forEach(val => {
+            if (val && typeof val === 'object') {
+              results.push({ ...val, _source: source });
+            }
+          });
+        }
+      }).catch(err => console.warn(`${label} fetch failed for ${path}`, err))
+    );
+  });
   await Promise.all(promises);
   return results;
 }
@@ -842,30 +864,105 @@ async function fetchFromBothDbs(path, isObjectMapping = true) {
    ============================================ */
 function processAboutSnapshot(data) {
   if (!data || typeof data !== 'object') return;
-  const processArtist = (val) => {
-    if (!val || typeof val !== 'object') return;
-    const name = val.name || val.artistName;
-    if (name) {
-      const existing = artistAboutCache[name] || artistAboutCache[normalizeArtistName(name)];
-      if (!existing || Object.keys(val).length > Object.keys(existing).length) {
-        artistAboutCache[name] = val;
-        artistAboutCache[normalizeArtistName(name)] = val;
-      }
+
+  const TEXT_FIELDS = ['bio', 'biography', 'about', 'description', 'artistBio', 'story', 'artistDescription'];
+
+  const processArtist = (val, key) => {
+    if (!val) return;
+
+    /* Handle raw string bio: { "Artist Name": "He paints with oils..." } */
+    if (typeof val === 'string') {
+      if (!key) return;
+      val = { name: key, bio: val };
+    }
+
+    if (typeof val !== 'object' || Array.isArray(val)) return;
+
+    const name = val.name || val.artistName || val.fullName || val.displayName;
+    if (!name) return;
+
+    const normName = normalizeArtistName(name);
+    const existing = artistAboutCache[name] || artistAboutCache[normName];
+
+    if (existing) {
+      /* Deep merge: combine all fields from every source */
+      Object.entries(val).forEach(([k, v]) => {
+        if (v === null || v === undefined) return;
+
+        /* For text fields, keep whichever value is longer */
+        if (TEXT_FIELDS.includes(k) && typeof v === 'string') {
+          const existingVal = existing[k];
+          if (!existingVal || v.length > existingVal.length) {
+            existing[k] = v;
+          }
+          return;
+        }
+
+        /* For nested objects (socials, socialLinks, etc), merge recursively */
+        if (typeof v === 'object' && !Array.isArray(v)) {
+          const existingVal = existing[k];
+          if (typeof existingVal === 'object' && existingVal && !Array.isArray(existingVal)) {
+            existing[k] = { ...existingVal, ...v };
+          } else {
+            existing[k] = v;
+          }
+          return;
+        }
+
+        /* For everything else, fill in missing values only */
+        if (existing[k] === null || existing[k] === undefined || existing[k] === '') {
+          existing[k] = v;
+        }
+      });
+      artistAboutCache[name] = existing;
+      artistAboutCache[normName] = existing;
+    } else {
+      artistAboutCache[name] = { ...val };
+      artistAboutCache[normName] = { ...val };
     }
   };
-  if (data.name || data.artistName || data.tagline || data.bio || data.biography) {
+
+  /* Is the data itself a single artist object? */
+  if (data.name || data.artistName || data.fullName || data.displayName || data.tagline || data.bio || data.biography) {
     processArtist(data);
   } else {
-    Object.values(data).forEach(val => processArtist(val));
+    Object.entries(data).forEach(([key, val]) => processArtist(val, key));
   }
 }
 
 function loadArtistAboutData() {
   if (artistAboutLoaded) return Promise.resolve();
   const promises = [];
-  if (db) promises.push(db.ref('about').once('value').then(snap => processAboutSnapshot(snap.val())).catch(err => console.warn('DB1 about load failed:', err)));
-  if (db2) promises.push(db2.ref('about').once('value').then(snap => processAboutSnapshot(snap.val())).catch(err => console.warn('DB2 about load failed:', err)));
-  return Promise.all(promises).then(() => { artistAboutLoaded = true; });
+
+  /* Every path where artist bio/about data might live */
+  const aboutPaths = [
+    'about', 'bios', 'artists', 'artistBio', 'artist-bios',
+    'profiles', 'artistProfiles', 'team', 'artist_info', 'artistInfo'
+  ];
+
+  const databases = [
+    { db: db, label: 'DB1' },
+    { db: db2, label: 'DB2' },
+    { db: db3, label: 'DB3' }
+  ];
+
+  databases.forEach(({ db: dbRef, label }) => {
+    if (!dbRef) return;
+    aboutPaths.forEach(path => {
+      promises.push(
+        dbRef.ref(path).once('value')
+          .then(snap => {
+            const val = snap.val();
+            if (val) processAboutSnapshot(val);
+          })
+          .catch(() => { /* path doesn't exist — silently skip */ })
+      );
+    });
+  });
+
+  return Promise.all(promises).then(() => {
+    artistAboutLoaded = true;
+  });
 }
 
 async function getArtistAbout(artistName) {
@@ -876,7 +973,7 @@ async function getArtistAbout(artistName) {
 
 /* Main Artwork Load - Merges Realtime Data */
 function mergeAndSetArtworks() {
-  allArtworks = [...db1Artworks, ...db2Artworks].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  allArtworks = [...db1Artworks, ...db2Artworks, ...db3Artworks].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   artworksReady = true;
   buildCategories();
   initHeroSlider();
@@ -885,9 +982,9 @@ function mergeAndSetArtworks() {
 
 function loadArtworksRealtime() {
   return new Promise((resolve) => {
-    let db1Resolved = false, db2Resolved = false;
+    let db1Resolved = false, db2Resolved = false, db3Resolved = false;
     let resolveOnce = resolve;
-    function checkResolve() { if (db1Resolved && db2Resolved && resolveOnce) { resolveOnce(); resolveOnce = null; } }
+    function checkResolve() { if (db1Resolved && db2Resolved && db3Resolved && resolveOnce) { resolveOnce(); resolveOnce = null; } }
 
     db.ref('artworks').on('value', (snapshot) => {
       const data = snapshot.val();
@@ -904,6 +1001,15 @@ function loadArtworksRealtime() {
         db2Resolved = true; checkResolve();
       }, (error) => { console.error('Error loading DB2 artworks:', error); db2Resolved = true; checkResolve(); });
     } else { db2Resolved = true; checkResolve(); }
+
+    if (db3) {
+      db3.ref('artworks').on('value', (snapshot) => {
+        const data = snapshot.val();
+        db3Artworks = data ? Object.entries(data).map(([id, art]) => ({ id: `db3:${id}`, ...art, _source: 'db3' })) : [];
+        mergeAndSetArtworks();
+        db3Resolved = true; checkResolve();
+      }, (error) => { console.error('Error loading DB3 artworks:', error); db3Resolved = true; checkResolve(); });
+    } else { db3Resolved = true; checkResolve(); }
   });
 }
 
@@ -1286,7 +1392,9 @@ function openOrderFormForArtwork(artwork) {
         status: 'pending', createdAt: Date.now()
       };
       try {
-        const targetDb = currentOrderArtwork._source === 'db2' && db2 ? db2 : db;
+             let targetDb = db;
+      if (currentOrderArtwork._source === 'db2' && db2) targetDb = db2;
+      else if (currentOrderArtwork._source === 'db3' && db3) targetDb = db3;
         await targetDb.ref('orders').push().set(orderData);
         modal.classList.remove('open'); document.body.style.overflow = '';
         showToast('Order submitted successfully!', 'success');
@@ -1465,10 +1573,12 @@ function loadViewingRoom() {
   if (filtered.length === 0) {
     empty?.classList.remove('hidden');
     viewer?.classList.add('hidden');
+    const gridSection = document.getElementById('vrGallerySection');
+    if (gridSection) gridSection.remove();
     return;
   }
 
-  /* Only rebuild strip if artwork count changed */
+  /* Only rebuild strip + grid if artwork count changed */
   const countChanged = filtered.length !== vrState.lastArtworkCount;
   vrState.artworks = filtered;
   vrState.lastArtworkCount = filtered.length;
@@ -1477,6 +1587,7 @@ function loadViewingRoom() {
   viewer?.classList.remove('hidden');
 
   if (countChanged) {
+    /* --- Rebuild thumbnail strip --- */
     const strip = document.getElementById('vrStrip');
     if (strip) {
       strip.innerHTML = '';
@@ -1489,11 +1600,96 @@ function loadViewingRoom() {
         strip.appendChild(thumb);
       });
     }
+
+    /* --- Build gallery grid below the viewer --- */
+    ensureVRGallerySection();
+    renderVRGalleryGrid();
   }
 
   /* Clamp current index */
   if (vrState.currentIndex >= vrState.artworks.length) vrState.currentIndex = 0;
   showVRArtwork(vrState.currentIndex);
+}
+
+/* Create the gallery section below the viewer if it doesn't exist yet */
+function ensureVRGallerySection() {
+  if (document.getElementById('vrGallerySection')) return;
+  const viewer = document.getElementById('vrViewer');
+  if (!viewer) return;
+
+  const section = document.createElement('div');
+  section.id = 'vrGallerySection';
+  section.style.cssText = 'margin-top:3rem;padding:0 1.5rem 4rem;max-width:1400px;margin-left:auto;margin-right:auto;';
+  section.innerHTML = `
+    <div class="section-header" style="margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+      <h2 style="margin:0;">${t('all_artworks')}</h2>
+      <span style="color:var(--muted);font-size:0.9rem;" id="vrGridCount">${vrState.artworks.length} ${t('artworks')}</span>
+    </div>
+    <div class="gallery-grid" id="vrGalleryGrid"></div>
+  `;
+  viewer.after(section);
+}
+
+/* Render artwork cards into the below-viewer grid.
+   Clicking a card scrolls to the viewer and shows that artwork
+   instead of navigating to the detail page. */
+function renderVRGalleryGrid() {
+  const grid = document.getElementById('vrGalleryGrid');
+  const countEl = document.getElementById('vrGridCount');
+  if (!grid) return;
+  if (countEl) countEl.textContent = `${vrState.artworks.length} ${t('artworks')}`;
+
+  /* Build cards using the same card generator */
+  const fragment = document.createDocumentFragment();
+  const temp = document.createElement('div');
+  temp.innerHTML = vrState.artworks.map(a => createArtworkCard(a)).join('');
+  while (temp.firstChild) fragment.appendChild(temp.firstChild);
+  grid.innerHTML = '';
+  grid.appendChild(fragment);
+  lucide.createIcons({ nodes: [grid] });
+
+  /* Override default card click → scroll to viewer & show artwork */
+  grid.querySelectorAll('.artwork-card').forEach(card => {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.artwork-card-fav')) return;
+      const artId = card.dataset.id;
+      const idx = vrState.artworks.findIndex(a => a.id === artId);
+      if (idx >= 0) {
+        vrState.currentIndex = idx;
+        showVRArtwork(idx);
+        document.getElementById('vrViewer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  /* Favorite buttons still work normally */
+  grid.querySelectorAll('.artwork-card-fav').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); toggleFavorite(btn.dataset.fav); });
+  });
+
+  /* Highlight the currently-viewed card */
+  highlightVRGridCard();
+}
+
+/* Highlight the card in the grid that matches the current viewer artwork */
+function highlightVRGridCard() {
+  const currentArt = vrState.artworks[vrState.currentIndex];
+  if (!currentArt) return;
+  document.querySelectorAll('#vrGalleryGrid .artwork-card').forEach(card => {
+    const isCurrent = card.dataset.id === currentArt.id;
+    card.classList.toggle('vr-card-active', isCurrent);
+    /* Add/remove a small "Viewing" badge */
+    let badge = card.querySelector('.vr-viewing-badge');
+    if (isCurrent && !badge) {
+      badge = document.createElement('span');
+      badge.className = 'vr-viewing-badge';
+      badge.textContent = '▶ Viewing';
+      card.querySelector('.artwork-card-image')?.appendChild(badge);
+    } else if (!isCurrent && badge) {
+      badge.remove();
+    }
+  });
 }
 
 async function showVRArtwork(index) {
@@ -1527,6 +1723,8 @@ async function showVRArtwork(index) {
   const activeThumb = document.querySelector('.vr-thumb.active');
   if (activeThumb) activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   updateVRFavBtn();
+  /* Highlight the matching card in the grid below */
+  highlightVRGridCard();
 }
 
 function updateVRFavBtn() {
