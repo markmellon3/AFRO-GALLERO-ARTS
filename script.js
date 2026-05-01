@@ -1,36 +1,6 @@
 /* ============================================
-   FIREBASE CONFIGURATIONS (Multiple Instances)
+   FIREBASE CONFIGURATIONS
    ============================================ */
-const DATA_CONFIG = {
-  apiKey: "AIzaSyBQv8x-dUFey7F_onKfngp3IKKVf82XsmM",
-  authDomain: "art-gallery-v16.firebaseapp.com",
-  projectId: "art-gallery-v16",
-  storageBucket: "art-gallery-v16.firebasestorage.app",
-  messagingSenderId: "858033982293",
-  appId: "1:858033982293:web:ae1455e31f28d1a9777ddc",
-  measurementId: "G-3YF0W7SB9Z"
-};
-
-const DATA_CONFIG_2 = {
-  apiKey: "AIzaSyAc0uY4FNfxXPKEnbKd7tVoPbCqhiea8uI",
-  authDomain: "alvin-afro-gallero.firebaseapp.com",
-  projectId: "alvin-afro-gallero",
-  storageBucket: "alvin-afro-gallero.firebasestorage.app",
-  messagingSenderId: "822035286405",
-  appId: "1:822035286405:web:89d36d27d8f6122ceb1cec",
-  measurementId: "G-YQGDEV5DCJ"
-};
-
-const DATA_CONFIG_3 = {
-  apiKey: "AIzaSyApiNqqM44cxq6Wcpy769YXW6_dDIpVj-M",
-  authDomain: "user3-afro-gallero.firebaseapp.com",
-  projectId: "user3-afro-gallero",
-  storageBucket: "user3-afro-gallero.firebasestorage.app",
-  messagingSenderId: "87417805369",
-  appId: "1:87417805369:web:72f1f3d6c1f3e244ac8be8",
-  measurementId: "G-4XZY1QC68E"
-};
-
 const AUTH_CONFIG = {
   apiKey: "AIzaSyC483ZOHvItMVBCe1HufHO39FyYVlNDPLU",
   authDomain: "auther-afro-gallero.firebaseapp.com",
@@ -44,7 +14,7 @@ const AUTH_CONFIG = {
 const WHATSAPP_NUMBER = "256700000000";
 
 /* ============================================
-   FIREBASE MULTI-APP INITIALIZATION
+   FIREBASE APP INITIALIZATION
    ============================================ */
 const FBApps = {};
 
@@ -61,14 +31,8 @@ function initFirebaseApp(name, config) {
   return FBApps[name];
 }
 
-initFirebaseApp('data', DATA_CONFIG);
-initFirebaseApp('data2', DATA_CONFIG_2);
-initFirebaseApp('data3', DATA_CONFIG_3);
 initFirebaseApp('auth', AUTH_CONFIG);
 
-const db = FBApps.data?.db;
-const db2 = FBApps.data2?.db;
-const db3 = FBApps.data3?.db;
 const auth = FBApps.auth?.auth;
 const authDb = FBApps.auth?.db;
 
@@ -129,9 +93,6 @@ function updateAuthUI(user) {
    ============================================ */
 let allArtworks = [];
 let allCategories = [];
-let db1Artworks = [];
-let db2Artworks = [];
-let db3Artworks = [];
 
 const AppState = {
   baseCurrency: 'UGX',
@@ -713,7 +674,7 @@ function openPortfolioRegistration() {
     { text: "This portfolio completely transformed how I showcase my art. The admin page makes managing my gallery incredibly easy!", author: "Alex Rivera, Painter" },
     { text: "Having my own personal gallery website made me look so much more professional to clients. Absolutely worth it.", author: "Jordan Lee, Sculptor" }
   ];
-  const portfolioPrice = "$7.99 / month";
+  const portfolioPrice = "Free";
 
   let regModal = document.getElementById('portfolioRegModal');
   if (!regModal) {
@@ -760,7 +721,7 @@ function openPortfolioRegistration() {
           <p style="margin:0;font-size:0.85rem;opacity:0.8;">Get started for just</p>
           <p style="margin:4px 0 0 0;font-size:2rem;font-weight:800;color:var(--primary);">${portfolioPrice}</p>
         </div>
-        <a href="register.html" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;display:block;font-weight:600;padding:12px;">
+        <a href="/portfolio.html" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;display:block;font-weight:600;padding:12px;">
           <i data-lucide="user-plus" style="width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Register Now
         </a>
       </div>`;
@@ -823,46 +784,68 @@ function handleHash() {
 }
 
 /* ============================================
-   FIREBASE: MULTI-DB DATA SYNCING & MERGING
+   FIREBASE: SINGLE DB DATA FETCHING FROM user_information
    ============================================ */
-async function fetchFromBothDbs(path, isObjectMapping = true) {
+async function fetchFromUserInformation(pathSuffix, isObjectMapping = true) {
   let results = [];
-  const promises = [];
-  const dbs = [
-    { ref: db, source: 'db1', label: 'DB1' },
-    { ref: db2, source: 'db2', label: 'DB2' },
-    { ref: db3, source: 'db3', label: 'DB3' }
-  ];
-  dbs.forEach(({ ref, source, label }) => {
-    if (!ref) return;
-    promises.push(
-      ref.ref(path).once('value').then(snap => {
-        const data = snap.val();
-        if (!data) return;
-        if (isObjectMapping) {
-          Object.entries(data).forEach(([id, val]) => {
-            if (val && typeof val === 'object') {
-              results.push({ id: `${source}:${id}`, ...val, _source: source });
-            }
-          });
-        } else {
-          Object.values(data).forEach(val => {
-            if (val && typeof val === 'object') {
-              results.push({ ...val, _source: source });
-            }
-          });
+  if (!authDb) return results;
+  
+  try {
+    const snapshot = await authDb.ref('user_information').once('value');
+    const usersData = snapshot.val();
+    if (!usersData) return results;
+
+    Object.entries(usersData).forEach(([userId, userData]) => {
+      if (!userData) return;
+      
+      /* Navigate to the requested path within this user's data */
+      let targetData = userData;
+      if (pathSuffix) {
+        const pathParts = pathSuffix.split('/');
+        for (const part of pathParts) {
+          if (targetData && typeof targetData === 'object' && !Array.isArray(targetData)) {
+            targetData = targetData[part];
+          } else {
+            targetData = null;
+            break;
+          }
         }
-      }).catch(err => console.warn(`${label} fetch failed for ${path}`, err))
-    );
-  });
-  await Promise.all(promises);
+      }
+      
+      if (!targetData || typeof targetData !== 'object') return;
+
+      if (isObjectMapping) {
+        Object.entries(targetData).forEach(([id, val]) => {
+          if (val && typeof val === 'object') {
+            results.push({ 
+              id: `${userId}:${id}`, 
+              ...val, 
+              _source: userId /* Store userId as source for orders */
+            });
+          }
+        });
+      } else {
+        Object.values(targetData).forEach(val => {
+          if (val && typeof val === 'object') {
+            results.push({ 
+              ...val, 
+              _source: userId 
+            });
+          }
+        });
+      }
+    });
+  } catch (err) {
+    console.warn('Failed to fetch from user_information:', err);
+  }
+  
   return results;
 }
 
 /* ============================================
    ARTIST ABOUT DATA
    ============================================ */
-function processAboutSnapshot(data) {
+function processAboutSnapshot(data, userId) {
   if (!data || typeof data !== 'object') return;
 
   const TEXT_FIELDS = ['bio', 'biography', 'about', 'description', 'artistBio', 'story', 'artistDescription'];
@@ -878,7 +861,9 @@ function processAboutSnapshot(data) {
 
     if (typeof val !== 'object' || Array.isArray(val)) return;
 
-    const name = val.name || val.artistName || val.fullName || val.displayName;
+    /* Use firstName + lastName if name/artistName not present */
+    const name = val.name || val.artistName || val.fullName || val.displayName || 
+                 (val.firstName && val.lastName ? `${val.firstName} ${val.lastName}` : val.firstName);
     if (!name) return;
 
     const normName = normalizeArtistName(name);
@@ -914,16 +899,19 @@ function processAboutSnapshot(data) {
           existing[k] = v;
         }
       });
+      /* Store userId reference */
+      existing._userId = existing._userId || userId;
       artistAboutCache[name] = existing;
       artistAboutCache[normName] = existing;
     } else {
-      artistAboutCache[name] = { ...val };
-      artistAboutCache[normName] = { ...val };
+      const newEntry = { ...val, _userId: userId };
+      artistAboutCache[name] = newEntry;
+      artistAboutCache[normName] = newEntry;
     }
   };
 
   /* Is the data itself a single artist object? */
-  if (data.name || data.artistName || data.fullName || data.displayName || data.tagline || data.bio || data.biography) {
+  if (data.name || data.artistName || data.fullName || data.displayName || data.tagline || data.bio || data.biography || data.firstName) {
     processArtist(data);
   } else {
     Object.entries(data).forEach(([key, val]) => processArtist(val, key));
@@ -932,36 +920,27 @@ function processAboutSnapshot(data) {
 
 function loadArtistAboutData() {
   if (artistAboutLoaded) return Promise.resolve();
-  const promises = [];
-
-  /* Every path where artist bio/about data might live */
-  const aboutPaths = [
-    'about', 'bios', 'artists', 'artistBio', 'artist-bios',
-    'profiles', 'artistProfiles', 'team', 'artist_info', 'artistInfo'
-  ];
-
-  const databases = [
-    { db: db, label: 'DB1' },
-    { db: db2, label: 'DB2' },
-    { db: db3, label: 'DB3' }
-  ];
-
-  databases.forEach(({ db: dbRef, label }) => {
-    if (!dbRef) return;
-    aboutPaths.forEach(path => {
-      promises.push(
-        dbRef.ref(path).once('value')
-          .then(snap => {
-            const val = snap.val();
-            if (val) processAboutSnapshot(val);
-          })
-          .catch(() => { /* path doesn't exist — silently skip */ })
-      );
-    });
-  });
-
-  return Promise.all(promises).then(() => {
-    artistAboutLoaded = true;
+  
+  return new Promise((resolve) => {
+    if (!authDb) { resolve(); return; }
+    
+    authDb.ref('user_information').once('value')
+      .then(snap => {
+        const usersData = snap.val();
+        if (!usersData) { resolve(); return; }
+        
+        Object.entries(usersData).forEach(([userId, userData]) => {
+          if (!userData || !userData.about) return;
+          processAboutSnapshot(userData.about, userId);
+        });
+        artistAboutLoaded = true;
+        resolve();
+      })
+      .catch(err => {
+        console.warn('Failed to load artist about data:', err);
+        artistAboutLoaded = true;
+        resolve();
+      });
   });
 }
 
@@ -971,9 +950,9 @@ async function getArtistAbout(artistName) {
   return artistAboutCache[artistName] || artistAboutCache[normalizeArtistName(artistName)] || null;
 }
 
-/* Main Artwork Load - Merges Realtime Data */
+/* Main Artwork Load - Merges Realtime Data from user_information */
 function mergeAndSetArtworks() {
-  allArtworks = [...db1Artworks, ...db2Artworks, ...db3Artworks].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  allArtworks = [...allArtworks].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   artworksReady = true;
   buildCategories();
   initHeroSlider();
@@ -982,34 +961,42 @@ function mergeAndSetArtworks() {
 
 function loadArtworksRealtime() {
   return new Promise((resolve) => {
-    let db1Resolved = false, db2Resolved = false, db3Resolved = false;
-    let resolveOnce = resolve;
-    function checkResolve() { if (db1Resolved && db2Resolved && db3Resolved && resolveOnce) { resolveOnce(); resolveOnce = null; } }
-
-    db.ref('artworks').on('value', (snapshot) => {
-      const data = snapshot.val();
-      db1Artworks = data ? Object.entries(data).map(([id, art]) => ({ id: `db1:${id}`, ...art, _source: 'db1' })) : [];
+    if (!authDb) { resolve(); return; }
+    
+    authDb.ref('user_information').on('value', (snapshot) => {
+      const usersData = snapshot.val();
+      allArtworks = [];
+      
+      if (usersData) {
+        Object.entries(usersData).forEach(([userId, userData]) => {
+          if (!userData || !userData.artworks) return;
+          
+          Object.entries(userData.artworks).forEach(([artworkId, artworkData]) => {
+            if (artworkData && typeof artworkData === 'object') {
+              /* Get artist name from about section or artwork data */
+              const artistName = artworkData.artistName || 
+                               (userData.about && (userData.about.name || userData.about.artistName || userData.about.fullName || userData.about.displayName || 
+                               (userData.about.firstName && userData.about.lastName ? `${userData.about.firstName} ${userData.about.lastName}` : userData.about.firstName))) ||
+                               'Unknown Artist';
+              
+              allArtworks.push({
+                id: `${userId}:${artworkId}`,
+                ...artworkData,
+                artistName: artistName,
+                _source: userId
+              });
+            }
+          });
+        });
+      }
+      
       mergeAndSetArtworks();
-      db1Resolved = true; checkResolve();
-    }, (error) => { console.error('Error loading DB1 artworks:', error); db1Resolved = true; checkResolve(); });
-
-    if (db2) {
-      db2.ref('artworks').on('value', (snapshot) => {
-        const data = snapshot.val();
-        db2Artworks = data ? Object.entries(data).map(([id, art]) => ({ id: `db2:${id}`, ...art, _source: 'db2' })) : [];
-        mergeAndSetArtworks();
-        db2Resolved = true; checkResolve();
-      }, (error) => { console.error('Error loading DB2 artworks:', error); db2Resolved = true; checkResolve(); });
-    } else { db2Resolved = true; checkResolve(); }
-
-    if (db3) {
-      db3.ref('artworks').on('value', (snapshot) => {
-        const data = snapshot.val();
-        db3Artworks = data ? Object.entries(data).map(([id, art]) => ({ id: `db3:${id}`, ...art, _source: 'db3' })) : [];
-        mergeAndSetArtworks();
-        db3Resolved = true; checkResolve();
-      }, (error) => { console.error('Error loading DB3 artworks:', error); db3Resolved = true; checkResolve(); });
-    } else { db3Resolved = true; checkResolve(); }
+      resolve();
+    }, (error) => {
+      console.error('Error loading artworks from user_information:', error);
+      mergeAndSetArtworks();
+      resolve();
+    });
   });
 }
 
@@ -1164,7 +1151,8 @@ function renderArtistProfiles(isPageView = false) {
 
   Object.entries(artistAboutCache).forEach(([, data]) => {
     if (!data || typeof data !== 'object') return;
-    const name = data.name || data.artistName;
+    const name = data.name || data.artistName || data.fullName || data.displayName || 
+                 (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.firstName);
     if (!name) return;
     const normName = normalizeArtistName(name);
     if (processedNormNames.has(normName)) return;
@@ -1177,7 +1165,7 @@ function renderArtistProfiles(isPageView = false) {
       bio: data.bio || data.biography || data.about || data.description || '',
       location: data.location || (data.city && data.country ? `${data.city}, ${data.country}` : data.city || ''),
       phone: data.phone || data.whatsapp || '',
-      email: data.email || '',
+      email: data.email || data.emailAddress || '',
       instagram: data.instagram || (data.socials || data.socialLinks || {}).instagram || '',
       twitter: data.twitter || (data.socials || data.socialLinks || {}).twitter || '',
       website: data.website || (data.socials || data.socialLinks || {}).website || ''
@@ -1392,10 +1380,11 @@ function openOrderFormForArtwork(artwork) {
         status: 'pending', createdAt: Date.now()
       };
       try {
-             let targetDb = db;
-      if (currentOrderArtwork._source === 'db2' && db2) targetDb = db2;
-      else if (currentOrderArtwork._source === 'db3' && db3) targetDb = db3;
-        await targetDb.ref('orders').push().set(orderData);
+        /* Store order under the specific user who owns this artwork */
+        const userId = currentOrderArtwork._source;
+        if (userId && authDb) {
+          await authDb.ref(`user_information/${userId}/orders`).push().set(orderData);
+        }
         modal.classList.remove('open'); document.body.style.overflow = '';
         showToast('Order submitted successfully!', 'success');
         modal.querySelector('#clientOrderForm').reset();
@@ -1782,7 +1771,7 @@ function loadPriceDatabase(selectedCurrency = 'UGX') {
   if (!loading) return;
   loading.classList.remove('hidden'); empty?.classList.add('hidden'); dashboard?.classList.add('hidden');
   fetchLiveRatesPD().then(rates => {
-    fetchFromBothDbs('artworks', true).then(results => {
+    fetchFromUserInformation('artworks', true).then(results => {
       loading.classList.add('hidden');
       const validArtworks = results.filter(a => typeof a.price === 'number' && a.price > 0);
       if (validArtworks.length === 0) { empty?.classList.remove('hidden'); return; }
@@ -1835,7 +1824,7 @@ function loadAuctions() {
   if (!loading) return;
   loading.classList.remove('hidden'); empty?.classList.add('hidden'); grid?.classList.add('hidden');
   if (auctionTimerInterval) clearInterval(auctionTimerInterval);
-  fetchFromBothDbs('auctions', true).then(results => {
+  fetchFromUserInformation('auctions', true).then(results => {
     loading.classList.add('hidden');
     const auctions = results.filter(a => a.image && a.title);
     if (auctions.length === 0) { empty?.classList.remove('hidden'); return; }
@@ -2291,11 +2280,11 @@ async function init() {
   initPriceDatabaseListeners();
   SiteAnalytics.init(authDb);
   
-  /* Step 1: Load artist about/bio data from both DBs */
+  /* Step 1: Load artist about/bio data from user_information */
   await loadArtistAboutData();
   
   /* Step 2: Load artworks via realtime listeners — this automatically:
-     - Merges db1 + db2 into allArtworks
+     - Merges artworks from all users in user_information
      - Sets artworksReady = true (enables search)
      - Calls buildCategories() (populates all dropdowns)
      - Calls initHeroSlider() (populates hero background) */
