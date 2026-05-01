@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Dashboard — Afro Gallero</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+
+
+  <!-- ===== AUTH SCREEN ===== -->
+  <main id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-icon"><i data-lucide="shield-check" style="width:28px;height:28px;"></i></div>
+        <h2 class="auth-title">Afro Gallero</h2>
+        <p class="auth-subtitle" id="authSubtitle">Sign in to your account</p>
+      </div>
+
+      <div class="auth-tabs" id="authTabs">
+        <button type="button" class="auth-tab active" data-tab="signin">Sign In</button>
+        <button type="button" class="auth-tab" data-tab="signup">Sign Up</button>
+      </div>
+
+      <!-- SIGN IN FORM -->
+      <form id="signInForm" class="auth-form active">
+        <div class="form-group">
+          <label for="signInEmail">Email Address</label>
+          <input type="email" id="signInEmail" class="form-control" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="signInPassword">Password</label>
+          <div class="input-icon-wrap">
+            <input type="password" id="signInPassword" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" class="password-toggle" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button>
+          </div>
+        </div>
+        <div id="signInError" class="form-error hidden"></div>
+        <button type="submit" id="signInBtn" class="btn" style="width:100%;">
+          <span class="btn-text">Sign In</span>
+          <span class="btn-loader hidden"><div class="spinner"></div></span>
+        </button>
+        <div class="auth-links">
+          <a href="#" class="auth-link" id="forgotPasswordLink">Forgot Password?</a>
+        </div>
+      </form>
+
+      <!-- SIGN UP FORM -->
+      <form id="signUpForm" class="auth-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="signUpFirstName">First Name</label>
+            <input type="text" id="signUpFirstName" class="form-control" placeholder="e.g.mark" required>
+          </div>
+          <div class="form-group">
+            <label for="signUpSecondName">Second Name</label>
+            <input type="text" id="signUpSecondName" class="form-control" placeholder="e.g.mellon" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="signUpEmail">Email Address</label>
+          <input type="email" id="signUpEmail" class="form-control" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="signUpUsername">Username</label>
+          <input type="text" id="signUpUsername" class="form-control" placeholder="Choose a username" required>
+        </div>
+        <div class="form-group">
+          <label for="signUpLocation">Location</label>
+          <input type="text" id="signUpLocation" class="form-control" placeholder="e.g. Kampala, Uganda" required>
+        </div>
+        <div class="form-group">
+          <label for="signUpReferral">How did you hear about us?</label>
+          <select id="signUpReferral" class="form-control" required>
+            <option value="" disabled selected>Select an option</option>
+            <option value="Social Media">Social Media</option>
+            <option value="Friend or Referral">Friend or Referral</option>
+            <option value="Search Engine">Search Engine (Google, Bing, etc.)</option>
+            <option value="Advertisement">Advertisement</option>
+            <option value="Art Exhibition or Event">Art Exhibition or Event</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="signUpPassword">Password</label>
+            <div class="input-icon-wrap">
+              <input type="password" id="signUpPassword" class="form-control" placeholder="Min 6 characters" required minlength="6">
+              <button type="button" class="password-toggle" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="signUpConfirmPassword">Confirm Password</label>
+            <div class="input-icon-wrap">
+              <input type="password" id="signUpConfirmPassword" class="form-control" placeholder="Re-enter password" required minlength="6">
+              <button type="button" class="password-toggle" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button>
+            </div>
+          </div>
+        </div>
+        <div id="signUpError" class="form-error hidden"></div>
+        <button type="submit" id="signUpBtn" class="btn" style="width:100%;">
+          <span class="btn-text">Create Account</span>
+          <span class="btn-loader hidden"><div class="spinner"></div></span>
+        </button>
+      </form>
+
+      <!-- FORGOT PASSWORD FORM -->
+      <form id="forgotPasswordForm" class="auth-form">
+        <div class="auth-back-link">
+          <a href="#" class="auth-link" id="backToSignInLink"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Back to Sign In</a>
+        </div>
+        <div style="margin-bottom:1.25rem;">
+          <p style="font-size:.88rem;color:var(--fg-s);line-height:1.6;">Enter your email address and we'll send you a link to reset your password.</p>
+        </div>
+        <div class="form-group">
+          <label for="forgotEmail">Email Address</label>
+          <input type="email" id="forgotEmail" class="form-control" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div id="forgotError" class="form-error hidden"></div>
+        <button type="submit" id="forgotBtn" class="btn" style="width:100%;">
+          <span class="btn-text">Send Reset Link</span>
+          <span class="btn-loader hidden"><div class="spinner"></div></span>
+        </button>
+        <div id="forgotSuccess" class="auth-success hidden">
+          <div class="auth-success-icon"><i data-lucide="mail-check" style="width:28px;height:28px;"></i></div>
+          <h3 style="font-family:var(--font-display);margin-bottom:.5rem;">Check Your Email</h3>
+          <p style="color:var(--muted);font-size:.88rem;">We've sent a password reset link to your email address.</p>
+        </div>
+      </form>
+
+      <div class="auth-footer">
+        <a href="/"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back to Gallery</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== DASHBOARD SCREEN ===== -->
+  <section id="dashboardScreen" class="admin-dashboard hidden">
+  <!-- ===== TOPBAR ===== -->
+  <header class="admin-topbar">
+    <div class="admin-topbar-inner">
+      <div class="admin-topbar-left">
+        <button id="menuToggle" class="menu-toggle" aria-label="Menu">
+          <i data-lucide="menu" id="menuToggleIcon" style="width:22px;height:22px;"></i>
+        </button>
+        <a href="/" class="admin-topbar-logo"><span class="logo-dot"></span>Afro Gallero</a>
+        <div class="admin-topbar-divider"></div>
+        <span class="admin-topbar-badge">Dashboard</span>
+      </div>
+      <div class="admin-topbar-right" id="topbarRight" style="display:none;">
+        <span id="adminUserName" class="admin-topbar-email"></span>
+      </div>
+    </div>
+  </header>
+  
+  <!-- ===== MOBILE MENU OVERLAY ===== -->
+  <div id="mobileMenuOverlay" class="mobile-menu-overlay"></div>
+  
+  <!-- ===== MOBILE MENU ===== -->
+  <div id="mobileMenu" class="mobile-menu">
+    <div class="mobile-menu-header">
+      <div class="mobile-menu-user">
+        <div class="mobile-menu-avatar" id="mobileMenuAvatar">?</div>
+        <div>
+          <div class="mobile-menu-name" id="mobileMenuName">User</div>
+          <div class="mobile-menu-email" id="mobileMenuEmail">user@email.com</div>
+        </div>
+      </div>
+    </div>
+    
+    <nav class="mobile-menu-nav">
+      <a href="#" data-tab="order" class="mobile-menu-link">
+        <i data-lucide="shopping-bag" style="width:18px;height:18px;"></i>
+        <span>Orders</span>
+      </a>
+      <a href="#" data-tab="about" class="mobile-menu-link">
+        <i data-lucide="user-circle" style="width:18px;height:18px;"></i>
+        <span>About</span>
+      </a>
+      <a href="#" data-tab="user" class="mobile-menu-link">
+        <i data-lucide="bar-chart-3" style="width:18px;height:18px;"></i>
+        <span>Analytics</span>
+      </a>
+      <a href="#" data-tab="premium" class="mobile-menu-link">
+        <i data-lucide="sparkles" style="width:18px;height:18px;"></i>
+        <span>Premium</span>
+      </a>
+    </nav>
+    
+    <div class="mobile-menu-divider"></div>
+    
+    <div class="mobile-menu-actions">
+      <button id="darkModeBtn" class="mobile-menu-action">
+        <i data-lucide="moon" id="darkModeIcon" style="width:18px;height:18px;"></i>
+        <span>Dark Mode</span>
+      </button>
+      <button id="galleryThemeBtn" class="mobile-menu-action">
+        <i data-lucide="palette" style="width:18px;height:18px;"></i>
+        <span>Gallery Theme</span>
+      </button>
+      <a href="/" class="mobile-menu-action">
+        <i data-lucide="external-link" style="width:18px;height:18px;"></i>
+        <span>Back to Gallery</span>
+      </a>
+    </div>
+    
+    <div class="mobile-menu-divider"></div>
+    
+    <button id="mobileSignOutBtn" class="mobile-menu-signout">
+      <i data-lucide="log-out" style="width:18px;height:18px;"></i>
+      <span>Sign Out</span>
+    </button>
+  </div>
+    <!-- Dashboard Navigation -->
+    <nav class="admin-nav" id="adminNav">
+      <a href="#" class="admin-nav-link active" data-tab="order">
+        <i data-lucide="shopping-bag" style="width:16px;height:16px;"></i>
+        <span>Orders</span>
+      </a>
+      <a href="#" class="admin-nav-link" data-tab="about">
+        <i data-lucide="user-circle" style="width:16px;height:16px;"></i>
+        <span>About</span>
+      </a>
+      <a href="#" class="admin-nav-link" data-tab="user">
+        <i data-lucide="bar-chart-3" style="width:16px;height:16px;"></i>
+        <span>Analytics</span>
+      </a>
+      <a href="#" class="admin-nav-link" data-tab="premium">
+        <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
+        <span>Premium</span>
+      </a>
+    </nav>
+
+
+    <!-- ==========================================
+         TAB: ORDERS (Main Dashboard)
+         ========================================== -->
+    <div id="admin-order" class="admin-tab-page">
+
+      <!-- Stats Row -->
+      <div class="admin-stats reveal">
+        <div class="admin-stat-card">
+          <div class="admin-stat-icon"><i data-lucide="image" style="width:22px;height:22px;"></i></div>
+          <div class="admin-stat-info">
+            <span class="admin-stat-num" id="adminTotalArtworks">0</span>
+            <span class="admin-stat-label">Total Artworks</span>
+          </div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-icon"><i data-lucide="layout-grid" style="width:22px;height:22px;"></i></div>
+          <div class="admin-stat-info">
+            <span class="admin-stat-num" id="adminTotalCategories">0</span>
+            <span class="admin-stat-label">Categories</span>
+          </div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-icon"><i data-lucide="banknote" style="width:22px;height:22px;"></i></div>
+          <div class="admin-stat-info">
+            <span class="admin-stat-num" id="adminTotalValue">UGX 0</span>
+            <span class="admin-stat-label">Total Value <button type="button" id="totalValueToggle" class="value-currency-toggle" title="Switch currency">UGX</button></span>
+          </div>
+        </div>
+        <div class="admin-stat-card">
+          <div class="admin-stat-icon"><i data-lucide="clock" style="width:22px;height:22px;"></i></div>
+          <div class="admin-stat-info">
+            <span class="admin-stat-num" id="adminLastUpload">—</span>
+            <span class="admin-stat-label">Last Upload</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Traffic -->
+      <div class="admin-webstatus-section reveal" style="margin-bottom:2rem;">
+        <div class="webstatus-header">
+          <h3 style="font-family:var(--font-display);font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
+            <i data-lucide="activity" style="width:20px;height:20px;color:var(--accent);"></i> Live Traffic
+          </h3>
+          <span id="wsLastUpdated" style="font-size:.75rem;color:var(--muted);"></span>
+        </div>
+        <div class="webstatus-grid">
+          <div class="ws-card"><div class="ws-icon ws-icon-blue"><i data-lucide="eye" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTotalViews">—</span><span class="ws-label">Total Views</span></div></div>
+          <div class="ws-card"><div class="ws-icon ws-icon-purple"><i data-lucide="users" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTotalVisitors">—</span><span class="ws-label">Total Visitors</span></div></div>
+          <div class="ws-card"><div class="ws-icon ws-icon-green"><i data-lucide="eye" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTodayViews">—</span><span class="ws-label">Views Today</span></div></div>
+          <div class="ws-card"><div class="ws-icon ws-icon-amber"><i data-lucide="user-plus" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTodayVisitors">—</span><span class="ws-label">Visitors Today</span></div></div>
+          <div class="ws-card ws-card-active"><div class="ws-icon ws-icon-live"><i data-lucide="radio" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsActiveNow">—</span><span class="ws-label">Active Now</span></div><span class="ws-live-dot"></span></div>
+        </div>
+      </div>
+
+      <!-- Upload Form + Artwork List -->
+      <div class="admin-grid">
+        <div class="admin-form-panel reveal">
+          <div class="admin-panel-header">
+            <h3 id="uploadSectionTitle"><i data-lucide="plus-circle" style="width:20px;height:20px;"></i> Upload New Artwork</h3>
+          </div>
+          <form id="uploadForm">
+            <input type="hidden" id="editArtworkId" value="">
+            <div class="form-group">
+              <label for="artArtistName">Artist Name</label>
+              <input type="text" id="artArtistName" class="form-control" placeholder="Artist name" required>
+            </div>
+            <div class="form-group">
+              <label for="artTitle">Artwork Title</label>
+              <input type="text" id="artTitle" class="form-control" placeholder="e.g. Sunset Over Kampala" required>
+            </div>
+            <div class="form-group">
+              <label>Images</label>
+              <label for="fileInput" class="btn btn-outline btn-sm file-upload-label" id="fileUploadLabel">
+                <i data-lucide="image-plus" style="width:16px;height:16px;"></i>
+                <span class="btn-text">Select from Device</span>
+                <span class="btn-loader hidden" id="fileLoader"><div class="spinner spinner-dark"></div></span>
+              </label>
+              <input type="file" id="fileInput" accept="image/*" multiple class="hidden-file-input">
+              <span class="preview-count-badge" id="previewCountBadge"></span>
+              <div id="previewGrid" class="preview-grid"></div>
+              <div id="previewEmptyHint" class="preview-empty-hint">
+                <i data-lucide="image" style="width:28px;height:28px;opacity:.4;"></i>
+                <span>No images selected yet</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="artSize">Image Size / Dimensions</label>
+              <input type="text" id="artSize" class="form-control" placeholder="e.g. 24 × 36 in or 60 × 90 cm" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="artPrice">Price</label>
+                <div style="display:flex;gap:0;">
+                  <select id="artCurrency" class="form-control" style="width:auto;min-width:85px;border-radius:var(--r-sm) 0 0 var(--r-sm);border-right:none;font-weight:600;font-size:.85rem;cursor:pointer;">
+                    <option value="UGX" selected>UGX</option>
+                    <option value="USD">USD</option>
+                  </select>
+                  <input type="number" id="artPrice" class="form-control" placeholder="1500000" min="0" required style="border-radius:0 var(--r-sm) var(--r-sm) 0;">
+                </div>
+                <span id="rateHint" class="rate-hint"></span>
+              </div>
+              <div class="form-group">
+                <label for="artCategory">Category</label>
+                <select id="artCategory" class="form-control" required>
+                  <option value="" disabled selected>Select category</option>
+                  <option value="Paintings">Paintings</option>
+                  <option value="Sculptures">Sculptures</option>
+                  <option value="Digital Art">Digital Art</option>
+                  <option value="Photography">Photography</option>
+                  <option value="Textiles">Textiles</option>
+                  <option value="Mixed Media">Mixed Media</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="artDescription">Description</label>
+              <textarea id="artDescription" class="form-control" rows="4" placeholder="Briefly describe the artwork..." required></textarea>
+            </div>
+            <div id="uploadError" class="form-error hidden"></div>
+            <div id="uploadProgressWrap" class="upload-progress-wrap hidden">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem;">
+                <span style="font-size:.8rem;font-weight:600;color:var(--fg-s);" id="uploadProgressLabel">Uploading images...</span>
+                <span style="font-size:.78rem;color:var(--accent);font-weight:600;" id="uploadProgressPercent">0%</span>
+              </div>
+              <div class="upload-progress-bar-track"><div id="uploadProgressBar" class="upload-progress-bar-fill"></div></div>
+            </div>
+            <div style="display:flex;gap:.75rem;">
+              <button type="submit" id="uploadBtn" class="btn" style="flex:1;">
+                <span class="btn-icon-left"><i data-lucide="save" style="width:16px;height:16px;"></i></span>
+                <span class="btn-text">Save Artwork</span>
+                <span class="btn-loader hidden"><div class="spinner"></div></span>
+              </button>
+              <button type="button" id="cancelEditBtn" class="btn btn-outline hidden">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="admin-list-panel reveal">
+          <div class="admin-panel-header">
+            <h3><i data-lucide="folder-open" style="width:20px;height:20px;"></i> Collection</h3>
+            <span class="admin-count" id="adminCount">0 items</span>
+          </div>
+          <div class="admin-search-bar">
+            <i data-lucide="search" style="width:16px;height:16px;flex-shrink:0;"></i>
+            <input type="text" id="adminSearchInput" placeholder="Search by title, category, or artist...">
+          </div>
+          <div id="adminArtworkList" class="admin-artwork-list"></div>
+          <div id="adminEmpty" class="admin-empty hidden">
+            <i data-lucide="image-off" style="width:40px;height:40px;opacity:.5;"></i>
+            <p>No artworks found</p>
+            <span style="font-size:.8rem;">Upload your first piece using the form.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="admin-messages-section reveal" style="margin-top:2.5rem;">
+        <div class="admin-msgs-header">
+          <h3 style="font-family:var(--font-display);font-size:1.2rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
+            <i data-lucide="mail" style="width:22px;height:22px;color:var(--accent);"></i> Messages
+            <span id="unreadBadge" class="admin-unread-badge hidden">0</span>
+          </h3>
+          <div style="display:flex;align-items:center;gap:.75rem;">
+            <div class="admin-search-bar" style="margin-bottom:0;max-width:240px;">
+              <i data-lucide="search" style="width:15px;height:15px;flex-shrink:0;"></i>
+              <input type="text" id="msgSearchInput" placeholder="Search messages...">
+            </div>
+            <button type="button" id="markAllReadBtn" class="btn btn-outline btn-sm" style="white-space:nowrap;">
+              <i data-lucide="check-check" style="width:15px;height:15px;"></i> Mark All Read
+            </button>
+          </div>
+        </div>
+        <div id="msgsList" class="admin-msgs-list"></div>
+        <div id="msgsEmpty" class="admin-empty hidden">
+          <i data-lucide="inbox" style="width:48px;height:48px;opacity:.4;"></i>
+          <p>No messages yet</p>
+          <span style="font-size:.82rem;">Messages from visitors will appear here.</span>
+        </div>
+      </div>
+
+      <!-- Orders -->
+      <div class="admin-orders-section reveal" style="margin-top:2.5rem;">
+        <div class="admin-msgs-header">
+          <h3 style="font-family:var(--font-display);font-size:1.2rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
+            <i data-lucide="shopping-bag" style="width:22px;height:22px;color:var(--accent);"></i> Incoming Orders
+          </h3>
+        </div>
+
+        <!-- Order Stats -->
+        <div class="order-stats-row">
+          <div class="stat-card"><div class="stat-ico" style="background:rgba(59,130,246,0.1);color:#3b82f6;"><i data-lucide="package"></i></div><div class="stat-info"><span class="stat-num" id="stTotal">0</span><span class="stat-lbl">Total</span></div></div>
+          <div class="stat-card"><div class="stat-ico" style="background:var(--accent-l);color:var(--accent);"><i data-lucide="clock"></i></div><div class="stat-info"><span class="stat-num" id="stPending">0</span><span class="stat-lbl">Pending</span></div></div>
+          <div class="stat-card"><div class="stat-ico" style="background:rgba(59,130,246,0.1);color:#3b82f6;"><i data-lucide="user-check"></i></div><div class="stat-info"><span class="stat-num" id="stContacted">0</span><span class="stat-lbl">Contacted</span></div></div>
+          <div class="stat-card"><div class="stat-ico" style="background:rgba(34,197,94,0.1);color:#22c55e;"><i data-lucide="check-circle"></i></div><div class="stat-info"><span class="stat-num" id="stDone">0</span><span class="stat-lbl">Completed</span></div></div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="order-toolbar">
+          <div class="admin-search-bar" style="margin-bottom:0;flex:1;min-width:200px;">
+            <i data-lucide="search" style="width:16px;height:16px;flex-shrink:0;"></i>
+            <input type="text" id="odSearch" placeholder="Search by name, email, phone, artwork...">
+          </div>
+          <div class="order-filter-tabs" id="orderFilterTabs">
+            <button type="button" class="order-ftab active" data-f="all">All</button>
+            <button type="button" class="order-ftab" data-f="pending">Pending</button>
+            <button type="button" class="order-ftab" data-f="contacted">Contacted</button>
+            <button type="button" class="order-ftab" data-f="completed">Completed</button>
+          </div>
+        </div>
+
+        <!-- Orders Grid -->
+        <div class="orders-grid" id="odGrid"></div>
+
+        <!-- Empty State -->
+        <div class="admin-empty hidden" id="odEmpty">
+          <i data-lucide="package" style="width:48px;height:48px;opacity:.4;"></i>
+          <p>No orders yet</p>
+          <span style="font-size:.82rem;">Purchase orders from your website visitors will appear here.</span>
+        </div>
+      </div>
+
+      <!-- Message Developer -->
+      <div class="admin-dev-msg-section reveal" style="margin-top:2rem;">
+        <div class="admin-msgs-header">
+          <h3 style="font-family:var(--font-display);font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
+            <i data-lucide="send" style="width:20px;height:20px;color:var(--accent);"></i> Message Developer
+          </h3>
+          <span id="devMsgSentBadge" class="dev-msg-sent-badge hidden">Sent</span>
+        </div>
+        <form id="devMsgForm">
+          <div class="dev-msg-grid">
+            <div class="form-group">
+              <label for="devMsgName">Full Name</label>
+              <input type="text" id="devMsgName" class="form-control" placeholder="Your full name" required autocomplete="name">
+            </div>
+            <div class="form-group">
+              <label for="devMsgEmail">Email Address</label>
+              <input type="email" id="devMsgEmail" class="form-control" placeholder="you@example.com" required autocomplete="email">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="devMsgText">Message</label>
+            <textarea id="devMsgText" class="form-control" rows="4" placeholder="Describe what you need help with..." required></textarea>
+          </div>
+          <div id="devMsgError" class="form-error hidden"></div>
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <button type="submit" id="devMsgSubmitBtn" class="btn" style="flex:1;max-width:280px;">
+              <i data-lucide="send" style="width:16px;height:16px;"></i>
+              <span class="btn-text">Send Message</span>
+              <span class="btn-loader hidden"><div class="spinner"></div></span>
+            </button>
+            <span style="font-size:.78rem;color:var(--muted);">Messages are saved to Firebase.</span>
+          </div>
+        </form>
+      </div>
+
+    </div>
+    <!-- END TAB: ORDERS -->
+
+
+    <!-- ==========================================
+         TAB: ABOUT & PROFILE
+         ========================================== -->
+    <div id="admin-about" class="admin-tab-page" style="display:none;">
+
+      <div class="admin-msgs-header" style="margin-bottom:2rem;">
+        <h3 style="font-family:var(--font-display);font-size:1.2rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
+          <i data-lucide="user-circle" style="width:22px;height:22px;color:var(--accent);"></i> About & Profile
+        </h3>
+        <span style="font-size:.82rem;color:var(--muted);">This information appears on your public gallery page.</span>
+      </div>
+
+      <!-- Gallery Theme Section -->
+      <div id="galleryThemeSection" class="gallery-theme-section" style="margin-bottom:2rem;">
+        <h4 style="font-family:var(--font-display);font-size:1.05rem;margin-bottom:1rem;display:flex;align-items:center;gap:.4rem;">
+          <i data-lucide="palette" style="width:18px;height:18px;color:var(--accent);"></i> 
+          Gallery Theme Settings
+          <span style="font-size:.75rem;color:var(--muted);font-family:var(--font-body);font-weight:400;">(Visitors see this)</span>
+        </h4>
+        
+        <div class="theme-color-grid">
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#b8860b" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #b8860b, #d4a843);"></div>
+            <span>Gold</span>
+          </label>
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#2563eb" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #2563eb, #60a5fa);"></div>
+            <span>Blue</span>
+          </label>
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#7c3aed" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #7c3aed, #a78bfa);"></div>
+            <span>Purple</span>
+          </label>
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#059669" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #059669, #34d399);"></div>
+            <span>Green</span>
+          </label>
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#dc2626" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #dc2626, #f87171);"></div>
+            <span>Red</span>
+          </label>
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#db2777" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #db2777, #f472b6);"></div>
+            <span>Pink</span>
+          </label>
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#ea580c" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #ea580c, #fb923c);"></div>
+            <span>Orange</span>
+          </label>
+          <label class="theme-color-option">
+            <input type="radio" name="themeColor" value="#0d9488" style="display:none;">
+            <div class="theme-color-swatch" style="background:linear-gradient(135deg, #0d9488, #2dd4bf);"></div>
+            <span>Teal</span>
+          </label>
+        </div>
+        
+        <input type="hidden" id="galleryAccentColor" value="#b8860b">
+        
+        <div class="theme-options-row">
+          <div class="form-group" style="flex:1;">
+            <label for="galleryFontFamily">Font Family</label>
+            <select id="galleryFontFamily" class="form-control">
+              <option value="Inter">Inter (Modern)</option>
+              <option value="Playfair Display">Playfair Display (Elegant)</option>
+              <option value="system-ui">System Default</option>
+              <option value="Georgia">Georgia (Classic)</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="theme-options-row">
+          <label class="theme-checkbox-label">
+            <input type="checkbox" id="galleryShowPrice" checked>
+            <span>Show Prices</span>
+          </label>
+          <label class="theme-checkbox-label">
+            <input type="checkbox" id="galleryShowCategory" checked>
+            <span>Show Categories</span>
+          </label>
+        </div>
+        
+        <button type="button" id="saveGalleryThemeBtn" class="btn" style="margin-top:1rem;">
+          <i data-lucide="save" style="width:16px;height:16px;"></i>
+          <span class="btn-text">Save Gallery Theme</span>
+        </button>
+      </div>
+
+      <!-- Photo Upload -->
+      <div class="about-upload-zone" id="aboutUploadZone">
+        <input type="file" id="aboutFileInput" accept="image/*" class="hidden-file-input">
+        <label for="aboutFileInput" class="about-upload-label">
+          <img id="aboutPreviewImg" src="" alt="" style="display:none;">
+          <div id="aboutUploadPlaceholder" class="about-upload-placeholder">
+            <i data-lucide="camera" style="width:32px;height:32px;color:var(--muted);"></i>
+            <span>Upload Artist Photo</span>
+            <span class="meta-date">Click to select (JPG, PNG, WebP — Max 5MB)</span>
+          </div>
+          <div id="aboutUploadOverlay" class="about-upload-overlay">
+            <i data-lucide="refresh-cw" style="width:20px;height:20px;"></i> Change Photo
+          </div>
+        </label>
+        <button type="button" id="aboutRemoveImgBtn" class="preview-remove-btn hidden" style="top:8px;right:8px;width:28px;height:28px;z-index:5;" title="Remove photo">
+          <i data-lucide="x" style="width:16px;height:16px;"></i>
+        </button>
+        <div id="aboutUploadProgress" class="upload-progress-bar-fill" style="position:absolute;bottom:0;left:0;height:4px;border-radius:0 0 var(--r-md) var(--r-md);width:0%;"></div>
+      </div>
+      <input type="hidden" id="aboutPhotoUrl" value="">
+
+      <form id="aboutForm" style="margin-top:1.5rem;">
+        <div class="form-group">
+          <label for="aboutArtistName">Artist Name</label>
+          <input type="text" id="aboutArtistName" class="form-control" placeholder="e.g. Amara Nakamya" required>
+        </div>
+        <div class="form-group">
+          <label for="aboutTagline">Tagline</label>
+          <input type="text" id="aboutTagline" class="form-control" placeholder="e.g. Contemporary Visual Artist — Kampala, Uganda">
+        </div>
+        <div class="form-group">
+          <label for="aboutBio1">Biography — First Paragraph</label>
+          <textarea id="aboutBio1" class="form-control" rows="4" placeholder="Introduce the artist, their medium, style, and what drives their work..."></textarea>
+        </div>
+        <div class="form-group">
+          <label for="aboutBio2">Biography — Second Paragraph</label>
+          <textarea id="aboutBio2" class="form-control" rows="4" placeholder="Exhibition history, collectors, process, or any additional context..."></textarea>
+        </div>
+
+        <h4 style="font-family:var(--font-display);font-size:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.4rem;">
+          <i data-lucide="share-2" style="width:18px;height:18px;color:var(--accent);"></i> Social Links
+          <span style="font-size:.75rem;color:var(--muted);font-family:var(--font-body);font-weight:400;">(leave blank to hide)</span>
+        </h4>
+        <div class="about-social-grid">
+          <div class="about-social-item">
+            <span class="about-social-ico" style="background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);"><i data-lucide="instagram" style="width:16px;height:16px;color:#fff;"></i></span>
+            <input type="url" id="aboutInstagram" class="form-control" placeholder="https://instagram.com/...">
+          </div>
+          <div class="about-social-item">
+            <span class="about-social-ico" style="background:#0f0f0f;border:1px solid var(--border);"><i data-lucide="twitter" style="width:16px;height:16px;color:#fff;"></i></span>
+            <input type="url" id="aboutTwitter" class="form-control" placeholder="https://twitter.com/...">
+          </div>
+          <div class="about-social-item">
+            <span class="about-social-ico" style="background:#1877F2;"><i data-lucide="facebook" style="width:16px;height:16px;color:#fff;"></i></span>
+            <input type="url" id="aboutFacebook" class="form-control" placeholder="https://facebook.com/...">
+          </div>
+          <div class="about-social-item">
+            <span class="about-social-ico" style="background:#25D366;"><i data-lucide="message-circle" style="width:16px;height:16px;color:#fff;"></i></span>
+            <input type="url" id="aboutWhatsapp" class="form-control" placeholder="https://wa.me/256700000000">
+          </div>
+        </div>
+
+        <div id="aboutSaveError" class="form-error hidden"></div>
+        <div style="display:flex;gap:.75rem;margin-top:1.5rem;">
+          <button type="submit" id="aboutSaveBtn" class="btn" style="flex:1;">
+            <span class="btn-icon-left"><i data-lucide="save" style="width:16px;height:16px;"></i></span>
+            <span class="btn-text">Save Changes</span>
+            <span class="btn-loader hidden"><div class="spinner"></div></span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+    <!-- END TAB: ABOUT -->
+
+
+    <!-- ==========================================
+         TAB: ANALYTICS
+         ========================================== -->
+    <div id="admin-user" class="admin-tab-page" style="display:none;">
+
+      <div class="admin-msgs-header" style="margin-bottom:2rem;">
+        <h3 style="font-family:var(--font-display);font-size:1.2rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
+          <i data-lucide="bar-chart-3" style="width:22px;height:22px;color:var(--accent);"></i> Analytics
+        </h3>
+        <span id="analyticsUpdated" style="font-size:.75rem;color:var(--muted);"></span>
+      </div>
+
+      <div class="analytics-summary">
+        <div class="analytics-mini-stat"><div class="analytics-mini-icon analytics-mini-blue"><i data-lucide="image" style="width:18px;height:18px;"></i></div><div><span class="analytics-mini-num" id="anTotalArt">0</span><span class="analytics-mini-label">Artworks</span></div></div>
+        <div class="analytics-mini-stat"><div class="analytics-mini-icon analytics-mini-green"><i data-lucide="mail" style="width:18px;height:18px;"></i></div><div><span class="analytics-mini-num" id="anTotalMsgs">0</span><span class="analytics-mini-label">Messages</span></div></div>
+        <div class="analytics-mini-stat"><div class="analytics-mini-icon analytics-mini-amber"><i data-lucide="eye" style="width:18px;height:18px;"></i></div><div><span class="analytics-mini-num" id="anTotalViews">0</span><span class="analytics-mini-label">Total Views</span></div></div>
+        <div class="analytics-mini-stat"><div class="analytics-mini-icon analytics-mini-purple"><i data-lucide="users" style="width:18px;height:18px;"></i></div><div><span class="analytics-mini-num" id="anTotalVisitors">0</span><span class="analytics-mini-label">Visitors</span></div></div>
+      </div>
+
+      <div class="analytics-charts-grid">
+        <div class="analytics-card"><div class="analytics-card-header"><h4><i data-lucide="pie-chart" style="width:16px;height:16px;"></i> By Category</h4></div><div class="analytics-card-body"><canvas id="chartCategory" height="260"></canvas></div></div>
+        <div class="analytics-card"><div class="analytics-card-header"><h4><i data-lucide="trending-up" style="width:16px;height:16px;"></i> Messages (7 Days)</h4></div><div class="analytics-card-body"><canvas id="chartMessages" height="260"></canvas></div></div>
+        <div class="analytics-card"><div class="analytics-card-header"><h4><i data-lucide="bar-chart" style="width:16px;height:16px;"></i> Price Distribution</h4></div><div class="analytics-card-body"><canvas id="chartPrice" height="260"></canvas></div></div>
+        <div class="analytics-card"><div class="analytics-card-header"><h4><i data-lucide="activity" style="width:16px;height:16px;"></i> Traffic Overview</h4></div><div class="analytics-card-body"><div class="traffic-metrics"><div class="traffic-metric"><span class="traffic-metric-value" id="tmTodayViews">—</span><span class="traffic-metric-label">Views Today</span></div><div class="traffic-metric"><span class="traffic-metric-value" id="tmTodayVisitors">—</span><span class="traffic-metric-label">Visitors Today</span></div><div class="traffic-metric"><span class="traffic-metric-value traffic-live" id="tmActiveNow">—</span><span class="traffic-metric-label">Active Now</span></div></div><canvas id="chartTraffic" height="200"></canvas></div></div>
+        <div class="analytics-card"><div class="analytics-card-header"><h4><i data-lucide="coins" style="width:16px;height:16px;"></i> Currency Split</h4></div><div class="analytics-card-body"><canvas id="chartCurrency" height="260"></canvas></div></div>
+        <div class="analytics-card"><div class="analytics-card-header"><h4><i data-lucide="clock" style="width:16px;height:16px;"></i> Recent Activity</h4></div><div class="analytics-card-body" style="padding:0;"><div class="activity-feed" id="activityFeed"><div class="activity-empty">Loading activity...</div></div></div></div>
+      </div>
+
+    </div>
+    <!-- END TAB: ANALYTICS -->
+
+
+    <!-- ==========================================
+         TAB: PREMIUM
+         ========================================== -->
+    <div id="admin-premium" class="admin-tab-page" style="display:none;">
+
+      <div class="admin-msgs-header" style="margin-bottom:2rem;">
+        <h3 style="font-family:var(--font-display);font-size:1.2rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
+          <i data-lucide="sparkles" style="width:22px;height:22px;color:var(--accent);"></i> Premium Preview
+        </h3>
+        <span style="font-size:.82rem;color:var(--muted);">Preview how your gallery appears to visitors.</span>
+      </div>
+
+      <div class="premium-preview-container">
+        <div class="premium-preview-header">
+          <div class="premium-preview-url-bar">
+            <i data-lucide="lock" style="width:12px;height:12px;color:#22c55e;flex-shrink:0;"></i>
+            <span id="premiumPreviewUrl"></span>
+          </div>
+        </div>
+        <div class="premium-preview-frame-wrap">
+          <iframe id="premiumPreviewFrame" src="" style="width:100%;height:70vh;border:none;border-radius:0 0 var(--r-lg) var(--r-lg);background:#fff;" title="Gallery Preview"></iframe>
+        </div>
+      </div>
+
+      <div class="premium-info-cards" style="margin-top:2rem;">
+        <div class="premium-info-card">
+          <div class="premium-info-icon" style="background:rgba(59,130,246,0.1);color:#3b82f6;"><i data-lucide="eye" style="width:20px;height:20px;"></i></div>
+          <div>
+            <h4 style="margin:0 0 .25rem 0;">Public Gallery</h4>
+            <p style="margin:0;color:var(--muted);font-size:.85rem;">This is exactly what visitors see when they visit your gallery page.</p>
+          </div>
+        </div>
+        <div class="premium-info-card">
+          <div class="premium-info-icon" style="background:rgba(34,197,94,0.1);color:#22c55e;"><i data-lucide="share-2" style="width:20px;height:20px;"></i></div>
+          <div>
+            <h4 style="margin:0 0 .25rem 0;">Share Your Link</h4>
+            <p style="margin:0;color:var(--muted);font-size:.85rem;">Copy the URL above and share it on social media, business cards, or anywhere.</p>
+          </div>
+        </div>
+        <div class="premium-info-card">
+          <div class="premium-info-icon" style="background:rgba(139,92,246,0.1);color:#8b5cf6;"><i data-lucide="refresh-cw" style="width:20px;height:20px;"></i></div>
+          <div>
+            <h4 style="margin:0 0 .25rem 0;">Live Updates</h4>
+            <p style="margin:0;color:var(--muted);font-size:.85rem;">Changes to your artworks, profile, and about page reflect here in real-time.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- END TAB: PREMIUM -->
+
+
+    <!-- Footer (always visible) -->
+    <div class="admin-footer-link" style="margin-top:3rem;"><a href="/"><i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back to Gallery</a></div>
+
+  </section>
+
+  <!-- ===== DELETE ARTWORK MODAL ===== -->
+  <div id="deleteModal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h3 style="display:flex;align-items:center;gap:.5rem;color:var(--danger);"><i data-lucide="alert-triangle" style="width:22px;height:22px;"></i> Confirm Deletion</h3>
+      <div class="modal-confirm"><p id="deleteModalText">This action cannot be undone.</p></div>
+      <div class="modal-actions">
+        <button id="cancelDeleteBtn" class="btn btn-outline">Cancel</button>
+        <button id="confirmDeleteBtn" class="btn btn-danger"><span class="btn-text">Delete Forever</span><span class="btn-loader hidden"><div class="spinner"></div></span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ORDER DETAIL MODAL ===== -->
+  <div id="orderDetailModal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:540px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem;gap:.75rem;">
+        <div>
+          <h3 id="odName" style="font-family:var(--font-display);margin:0 0 .35rem 0;"></h3>
+          <div class="order-det-contacts">
+            <span id="odEmail"><i data-lucide="mail" style="width:14px;height:14px;"></i></span>
+            <span id="odPhone"><i data-lucide="phone" style="width:14px;height:14px;"></i></span>
+          </div>
+        </div>
+        <button type="button" id="odClose" class="btn btn-icon" style="flex-shrink:0;"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      </div>
+      <div id="odDate" style="font-size:.78rem;color:var(--muted);margin-bottom:1rem;"></div>
+
+      <div class="order-det-artwork">
+        <img id="odArtImg" src="" alt="">
+        <div class="order-det-art-info">
+          <h4 id="odArtTitle"></h4>
+          <span class="order-det-art-price" id="odArtPrice"></span>
+          <span class="order-det-art-cat" id="odArtCat"></span>
+        </div>
+      </div>
+
+      <div class="order-det-message" id="odMsg"></div>
+
+      <div class="order-det-status-row">
+        <span style="font-size:.82rem;font-weight:600;color:var(--fg-s);">Status:</span>
+        <span class="order-det-badge" id="odStatus"></span>
+      </div>
+
+      <div class="order-det-actions">
+        <a id="odCall" href="#" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="phone" style="width:15px;height:15px;"></i> Call</a>
+        <a id="odWa" href="#" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="message-circle" style="width:15px;height:15px;"></i> WhatsApp</a>
+        <a id="odEml" href="#" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="mail" style="width:15px;height:15px;"></i> Email</a>
+        <button type="button" id="odMarkContacted" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="user-check" style="width:15px;height:15px;"></i> Contacted</button>
+        <button type="button" id="odMarkDone" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="check-circle" style="width:15px;height:15px;"></i> Done</button>
+        <button type="button" id="odDetailDel" class="btn btn-danger btn-sm"><i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DELETE ORDER MODAL ===== -->
+  <div id="deleteOrderModal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:400px;">
+      <h3 style="display:flex;align-items:center;gap:.5rem;color:var(--danger);font-family:var(--font-display);margin-bottom:1rem;">
+        <i data-lucide="alert-triangle" style="width:22px;height:22px;"></i> Delete Order
+      </h3>
+      <div class="modal-confirm"><p id="delOrderText">This order will be permanently removed.</p></div>
+      <div class="modal-actions">
+        <button id="delOrderCancel" class="btn btn-outline">Cancel</button>
+        <button id="delOrderConfirm" class="btn btn-danger"><span class="btn-text">Delete</span><span class="btn-loader hidden"><div class="spinner"></div></span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MESSAGE DETAIL MODAL ===== -->
+  <div id="msgDetailModal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:540px;">
+      <div class="msg-detail-info">
+        <div>
+          <h3 class="msg-detail-name" id="msgDetailName"></h3>
+          <div class="msg-detail-contacts">
+            <span id="msgDetailEmail"><i data-lucide="mail" style="width:13px;height:13px;"></i></span>
+            <span id="msgDetailContact"><i data-lucide="phone" style="width:13px;height:13px;"></i></span>
+          </div>
+        </div>
+        <button type="button" id="closeDetailBtn" class="btn btn-icon" style="flex-shrink:0;"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+      </div>
+      <div class="msg-detail-date" id="msgDetailDate"></div>
+      <div class="msg-detail-text" id="msgDetailText"></div>
+      <div class="msg-detail-actions">
+        <a id="msgDetailCall" href="#" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="phone" style="width:15px;height:15px;"></i> Call</a>
+        <a id="msgDetailReplyWA" href="#" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="message-circle" style="width:15px;height:15px;"></i> WhatsApp</a>
+        <a id="msgDetailReplyEmail" href="#" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="mail" style="width:15px;height:15px;"></i> Email</a>
+        <button type="button" id="msgDetailToggleRead" class="btn btn-outline btn-sm"><i data-lucide="eye" style="width:15px;height:15px;"></i> <span class="toggle-read-text">Mark Unread</span></button>
+        <button type="button" id="msgDetailDelete" class="btn btn-danger btn-sm"><i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DELETE MESSAGE MODAL ===== -->
+  <div id="deleteMsgModal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:400px;">
+      <h3 style="display:flex;align-items:center;gap:.5rem;color:var(--danger);font-family:var(--font-display);margin-bottom:1rem;"><i data-lucide="alert-triangle" style="width:22px;height:22px;"></i> Delete Message</h3>
+      <div class="modal-confirm"><p id="deleteMsgText">This message will be permanently removed.</p></div>
+      <div class="modal-actions">
+        <button id="cancelDeleteMsgBtn" class="btn btn-outline">Cancel</button>
+        <button id="confirmDeleteMsgBtn" class="btn btn-danger"><span class="btn-text">Delete</span><span class="btn-loader hidden"><div class="spinner"></div></span></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer"></div>
+  <script src="app.js"></script>
+</body>
+</html>
