@@ -1905,34 +1905,61 @@ document.addEventListener('keydown', (e) => {
   }();
   
 /* ============================================
-   ADVANCED WEBSITE ANALYTICS SYSTEM
-   Tracks: page views per hash, unique visitors
-   (fingerprint), clicks, session duration, device
-   info, referrer, first vs returning, active users
+   ADVANCED WEBSITE ANALYTICS SYSTEM v2.0
+   Tracks: page views, unique visitors (fingerprint),
+   clicks, session duration, device info, referrer,
+   first vs returning, active users, countries,
+   cities, scroll depth, route/state changes,
+   search queries, form submissions, external links,
+   downloads, custom events, engagement score,
+   bounce detection, dark mode, input method,
+   ad blocker, orientations, website health
+   (load time, TTFB, LCP, CLS, INP, long tasks,
+   JS errors, resource errors, memory, connection),
+   health score & status, error details
    Batch writes every 30 seconds
    ============================================ */
 const SiteAnalytics = (function () {
+  /* --- Storage Keys --- */
   const FP_KEY = 'artFP';
   const SES_KEY = 'artSes';
   const FV_KEY = 'artFV';
+  const VC_KEY = 'artVC';
+  const CTRY_KEY = 'artCtry';
+  const CTRY_CITY_KEY = 'artCtryCity';
+  const CTRY_TS = 'artCtryTs';
 
-  /* --- Fingerprint Generation --- */
+  /* --- Config --- */
+  const FLUSH_INTERVAL = 30000;
+  const CLICK_FLUSH_DELAY = 2000;
+  const HEARTBEAT_INTERVAL = 25000;
+  const MAX_QUEUE = 50;
+  const MAX_RECENT = 100;
+  const MAX_HEALTH_DETAILS = 50;
+  const COUNTRY_CACHE_TTL = 86400000;
+  const GEO_TIMEOUT = 3000;
+  const HEALTH_RECHECK = 60000;
+
+  /* ===========================
+     FINGERPRINT & IDENTITY
+     =========================== */
+
   function generateFingerprint() {
     try {
-      const c = document.createElement('canvas');
-      const ctx = c.getContext('2d');
+      var c = document.createElement('canvas');
+      var ctx = c.getContext('2d');
       ctx.textBaseline = 'top';
       ctx.font = '14px Arial';
       ctx.fillText('FP|' + navigator.language + '|' + screen.width + 'x' + screen.height, 2, 2);
-      const hash = c.toDataURL().split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
-      const parts = [
+      var hash = c.toDataURL().split('').reduce(function (a, b) { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
+      var parts = [
         hash, navigator.language, screen.width + 'x' + screen.height, screen.colorDepth,
         new Date().getTimezoneOffset(), navigator.hardwareConcurrency || 0,
         navigator.platform || ''
       ];
-      let h = 0;
-      const str = parts.join('|');
-      for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+      var h = 0;
+      var str = parts.join('|');
+      for (var i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
       return 'fp_' + Math.abs(h).toString(36);
     } catch (e) {
       return 'fp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6);
@@ -1940,7 +1967,7 @@ const SiteAnalytics = (function () {
   }
 
   function getFingerprint() {
-    let fp = localStorage.getItem(FP_KEY);
+    var fp = localStorage.getItem(FP_KEY);
     if (!fp) { fp = generateFingerprint(); localStorage.setItem(FP_KEY, fp); }
     return fp;
   }
@@ -1951,21 +1978,42 @@ const SiteAnalytics = (function () {
     return true;
   }
 
+  function getVisitCount() {
+    var vc = parseInt(localStorage.getItem(VC_KEY) || '0', 10);
+    vc++;
+    localStorage.setItem(VC_KEY, vc.toString());
+    return vc;
+  }
+
+  function getVisitCategory(vc) {
+    if (vc === 1) return 'new';
+    if (vc <= 3) return 'returning';
+    if (vc <= 10) return 'frequent';
+    return 'loyal';
+  }
+
   function getSessionId() {
-    let sid = sessionStorage.getItem(SES_KEY);
-    if (!sid) { sid = 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5); sessionStorage.setItem(SES_KEY, sid); }
+    var sid = sessionStorage.getItem(SES_KEY);
+    if (!sid) {
+      sid = 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+      sessionStorage.setItem(SES_KEY, sid);
+    }
     return sid;
   }
 
+  /* ===========================
+     DEVICE & CONTEXT
+     =========================== */
+
   function getDevice() {
-    const ua = navigator.userAgent;
+    var ua = navigator.userAgent;
     if (/Mobile|Android|iPhone|iPod/i.test(ua)) return 'Mobile';
     if (/iPad|Tablet/i.test(ua)) return 'Tablet';
     return 'Desktop';
   }
 
   function getBrowser() {
-    const ua = navigator.userAgent;
+    var ua = navigator.userAgent;
     if (ua.includes('Edg')) return 'Edge';
     if (ua.includes('OPR') || ua.includes('Opera')) return 'Opera';
     if (ua.includes('Chrome')) return 'Chrome';
@@ -1975,7 +2023,7 @@ const SiteAnalytics = (function () {
   }
 
   function getOS() {
-    const ua = navigator.userAgent;
+    var ua = navigator.userAgent;
     if (ua.includes('Windows')) return 'Windows';
     if (ua.includes('Mac')) return 'macOS';
     if (ua.includes('Android')) return 'Android';
@@ -1991,27 +2039,621 @@ const SiteAnalytics = (function () {
     return 'direct';
   }
 
+  function getDarkMode() {
+    try { return window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; }
+  }
+
+  function getReducedMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
+
+  function getInputMethod() {
+    if (navigator.maxTouchPoints > 0) return 'touch';
+    if ('ontouchstart' in window) return 'touch';
+    return 'mouse';
+  }
+
+  function detectAdBlocker() {
+    try {
+      var test = document.createElement('div');
+      test.innerHTML = '&nbsp;';
+      test.className = 'adsbox ad-banner ad-banner-top ad_placeholder ad_wrapper';
+      test.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+      document.body.appendChild(test);
+      var blocked = (test.offsetHeight === 0 || test.offsetParent === null || test.clientHeight === 0);
+      document.body.removeChild(test);
+      return blocked;
+    } catch (e) { return false; }
+  }
+
+  /* --- Country Detection --- */
+  var country = 'unknown';
+  var city = 'unknown';
+  var region = 'unknown';
+
+  function detectCountry(callback) {
+    var cached = localStorage.getItem(CTRY_KEY);
+    var cachedTs = parseInt(localStorage.getItem(CTRY_TS) || '0', 10);
+
+    if (cached && (Date.now() - cachedTs) < COUNTRY_CACHE_TTL) {
+      country = cached;
+      city = localStorage.getItem(CTRY_CITY_KEY) || 'unknown';
+      callback(cached, city);
+      return;
+    }
+
+    var apis = [
+      {
+        url: 'https://ipwho.is/',
+        parse: function (d) {
+          return { cc: d.country_code, city: d.city || 'unknown', region: d.region || 'unknown' };
+        }
+      },
+      {
+        url: 'https://ipapi.co/json/',
+        parse: function (d) {
+          return { cc: d.country_code, city: d.city || 'unknown', region: d.region || 'unknown' };
+        }
+      },
+      {
+        url: 'https://freeipapi.com/api/json',
+        parse: function (d) {
+          return { cc: d.countryCode, city: d.cityName || 'unknown', region: d.regionName || 'unknown' };
+        }
+      }
+    ];
+
+    function tryApi(index) {
+      if (index >= apis.length) {
+        country = cached || 'unknown';
+        city = 'unknown';
+        region = 'unknown';
+        callback(country, city);
+        return;
+      }
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function () { controller.abort(); }, GEO_TIMEOUT);
+      fetch(apis[index].url, { signal: controller.signal })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          clearTimeout(timeoutId);
+          try {
+            var parsed = apis[index].parse(data);
+            if (parsed.cc && parsed.cc.length === 2) {
+              country = parsed.cc;
+              city = parsed.city;
+              region = parsed.region;
+              localStorage.setItem(CTRY_KEY, country);
+              localStorage.setItem(CTRY_CITY_KEY, city);
+              localStorage.setItem(CTRY_TS, Date.now().toString());
+              callback(country, city);
+            } else {
+              tryApi(index + 1);
+            }
+          } catch (ex) { tryApi(index + 1); }
+        })
+        .catch(function () {
+          clearTimeout(timeoutId);
+          tryApi(index + 1);
+        });
+    }
+    tryApi(0);
+  }
+
+  /* ===========================
+     PAGE & ROUTING
+     =========================== */
+
   function pageName() {
-    const h = location.hash.slice(1) || 'home';
+    var h = location.hash.slice(1) || 'home';
     return h.split('/')[0];
+  }
+
+  function fullRoute() {
+    return location.hash.slice(1) || 'home';
   }
 
   function todayKey() { return new Date().toISOString().split('T')[0]; }
 
-  /* --- State --- */
-  let db = null;
-  let fp = null;
-  let sid = null;
-  let startTs = 0;
-  let flushed = false;
-  let presRef = null;
-  let eventQueue = [];
-  let flushTimer = null;
-  let clickFlushTimer = null;
+  /* ===========================
+     HEALTH MONITORING
+     =========================== */
+
+  var healthMetrics = {};
+
+  function capturePerformanceMetrics() {
+    var m = {};
+    if (window.performance && performance.timing) {
+      var t = performance.timing;
+      var ns = t.navigationStart;
+      if (t.loadEventEnd > 0) {
+        m.loadTime = t.loadEventEnd - ns;
+        m.domReady = t.domContentLoadedEventEnd - ns;
+      }
+      if (t.domainLookupEnd > 0) m.dnsTime = t.domainLookupEnd - t.domainLookupStart;
+      if (t.connectEnd > 0) m.tcpTime = t.connectEnd - t.connectStart;
+      if (t.responseStart > 0) m.ttfb = t.responseStart - t.requestStart;
+      if (t.responseEnd > 0 && t.responseStart > 0) m.downloadTime = t.responseEnd - t.responseStart;
+      if (t.secureConnectionStart > 0 && t.connectEnd > 0) m.sslTime = t.secureConnectionStart - t.connectStart;
+    }
+    if (navigator.connection) {
+      var conn = navigator.connection;
+      m.connectionType = conn.effectiveType || 'unknown';
+      m.downlink = conn.downlink || 0;
+      m.rtt = conn.rtt || 0;
+      m.saveData = conn.saveData || false;
+    }
+    m.domNodes = document.querySelectorAll('*').length;
+    m.viewportW = window.innerWidth;
+    m.viewportH = window.innerHeight;
+    m.pixelRatio = window.devicePixelRatio || 1;
+    m.touchPoints = navigator.maxTouchPoints || 0;
+    if (performance.memory) {
+      m.memoryUsed = Math.round(performance.memory.usedJSHeapSize / 1048576);
+      m.memoryTotal = Math.round(performance.memory.totalJSHeapSize / 1048576);
+    }
+    m.darkMode = getDarkMode();
+    m.reducedMotion = getReducedMotion();
+    m.inputMethod = getInputMethod();
+    m.adBlocker = detectAdBlocker();
+    m.online = navigator.onLine;
+    m.cookiesEnabled = navigator.cookieEnabled;
+    m.doNotTrack = navigator.doNotTrack === '1';
+    m.pdfViewer = navigator.pdfViewerEnabled !== false;
+    m.language = navigator.language;
+    m.languages = (navigator.languages || []).slice(0, 5);
+    healthMetrics = m;
+    return m;
+  }
+
+  function observeModernMetrics() {
+    if (!('PerformanceObserver' in window)) return;
+    var td = todayKey();
+
+    try {
+      new PerformanceObserver(function (list) {
+        if (!db) return;
+        var entries = list.getEntries();
+        var lcp = entries[entries.length - 1];
+        healthMetrics.lcp = Math.round(lcp.startTime);
+        safeTx('analytics/health/' + td + '/lcpSamples', 1);
+        db.ref('analytics/health/' + td + '/lcpLatest').set(healthMetrics.lcp).catch(function () { });
+      }).observe({ type: 'largest-contentful-paint', buffered: true });
+    } catch (e) { }
+
+    try {
+      var clsVal = 0;
+      new PerformanceObserver(function (list) {
+        if (!db) return;
+        list.getEntries().forEach(function (entry) {
+          if (!entry.hadRecentInput) clsVal += entry.value;
+        });
+        healthMetrics.cls = Math.round(clsVal * 1000);
+        db.ref('analytics/health/' + td + '/clsLatest').set(healthMetrics.cls).catch(function () { });
+      }).observe({ type: 'layout-shift', buffered: true });
+    } catch (e) { }
+
+    try {
+      new PerformanceObserver(function (list) {
+        if (!db) return;
+        list.getEntries().forEach(function (entry) {
+          var dur = Math.round(entry.duration);
+          healthMetrics.inp = Math.max(healthMetrics.inp || 0, dur);
+          safeTx('analytics/health/' + td + '/interactionSamples', 1);
+          db.ref('analytics/health/' + td + '/inpLatest').set(healthMetrics.inp).catch(function () { });
+        });
+      }).observe({ type: 'first-input', buffered: true });
+    } catch (e) { }
+
+    try {
+      new PerformanceObserver(function (list) {
+        if (!db) return;
+        var count = list.getEntries().length;
+        safeTx('analytics/health/' + td + '/longTasks', count);
+      }).observe({ type: 'longtask', buffered: true });
+    } catch (e) { }
+
+    /* Paint timings (FCP) */
+    try {
+      var paintEntries = performance.getEntriesByType('paint');
+      paintEntries.forEach(function (entry) {
+        if (entry.name === 'first-contentful-paint') {
+          healthMetrics.fcp = Math.round(entry.startTime);
+          db.ref('analytics/health/' + td + '/fcpLatest').set(healthMetrics.fcp).catch(function () { });
+          safeTx('analytics/health/' + td + '/fcpSamples', 1);
+        }
+      });
+    } catch (e) { }
+
+    /* Navigation entries (more reliable than timing API) */
+    try {
+      var navEntries = performance.getEntriesByType('navigation');
+      if (navEntries.length > 0) {
+        var nav = navEntries[0];
+        healthMetrics.transferSize = nav.transferSize || 0;
+        healthMetrics.encodedBodySize = nav.encodedBodySize || 0;
+        healthMetrics.decodedBodySize = nav.decodedBodySize || 0;
+      }
+    } catch (e) { }
+  }
+
+  function calculateHealthScore() {
+    var score = 100;
+    var m = healthMetrics;
+    if (m.loadTime) {
+      if (m.loadTime > 6000) score -= 30;
+      else if (m.loadTime > 4000) score -= 22;
+      else if (m.loadTime > 2500) score -= 12;
+      else if (m.loadTime > 1500) score -= 5;
+    }
+    if (m.lcp) {
+      if (m.lcp > 5000) score -= 25;
+      else if (m.lcp > 3000) score -= 18;
+      else if (m.lcp > 2000) score -= 8;
+      else if (m.lcp > 1200) score -= 3;
+    }
+    if (m.cls !== undefined) {
+      var clsR = m.cls / 1000;
+      if (clsR > 0.25) score -= 20;
+      else if (clsR > 0.1) score -= 12;
+      else if (clsR > 0.05) score -= 4;
+    }
+    if (m.inp) {
+      if (m.inp > 600) score -= 15;
+      else if (m.inp > 300) score -= 10;
+      else if (m.inp > 150) score -= 4;
+    }
+    if (m.ttfb) {
+      if (m.ttfb > 1200) score -= 10;
+      else if (m.ttfb > 600) score -= 6;
+      else if (m.ttfb > 300) score -= 2;
+    }
+    return Math.max(0, Math.min(100, score));
+  }
+
+  function getHealthStatus(score) {
+    if (score >= 80) return 'healthy';
+    if (score >= 55) return 'degraded';
+    return 'warning';
+  }
+
+  function writeHealthSnapshot() {
+    if (!db) return;
+    var td = todayKey();
+    var metrics = capturePerformanceMetrics();
+    var score = calculateHealthScore();
+    var status = getHealthStatus(score);
+
+    var snapshot = {};
+    for (var k in metrics) { snapshot[k] = metrics[k]; }
+    snapshot.pg = pageName();
+    snapshot.fullRoute = fullRoute();
+    snapshot.dev = getDevice();
+    snapshot.brw = getBrowser();
+    snapshot.os = getOS();
+    snapshot.country = country;
+    snapshot.city = city;
+    snapshot.region = region;
+    snapshot.ts = Date.now();
+    snapshot.sid = sid;
+    snapshot.score = score;
+    snapshot.status = status;
+
+    var pushKey = db.ref('analytics/health/' + td + '/snapshots').push().key;
+    db.ref('analytics/health/' + td + '/snapshots/' + pushKey).set(snapshot).catch(function () { });
+
+    db.ref('analytics/health/latest').set(snapshot).catch(function () { });
+    db.ref('analytics/health/status').set(status).catch(function () { });
+    db.ref('analytics/health/score').set(score).catch(function () { });
+
+    safeTx('analytics/health/' + td + '/sessions', 1);
+
+    if (metrics.loadTime) {
+      db.ref('analytics/health/' + td + '/loadTimeSum').transaction(function (v) { return (v || 0) + metrics.loadTime; });
+    }
+    if (metrics.ttfb) {
+      db.ref('analytics/health/' + td + '/ttfbSum').transaction(function (v) { return (v || 0) + metrics.ttfb; });
+    }
+    if (metrics.domReady) {
+      db.ref('analytics/health/' + td + '/domReadySum').transaction(function (v) { return (v || 0) + metrics.domReady; });
+    }
+    if (metrics.transferSize) {
+      db.ref('analytics/health/' + td + '/transferSizeSum').transaction(function (v) { return (v || 0) + metrics.transferSize; });
+    }
+
+    /* Connection type breakdown */
+    if (metrics.connectionType && metrics.connectionType !== 'unknown') {
+      safeTx('analytics/health/' + td + '/connections/' + metrics.connectionType, 1);
+    }
+
+    trimNode('analytics/health/' + td + '/snapshots', MAX_HEALTH_DETAILS);
+  }
+
+  function trackAllErrors() {
+    window.addEventListener('error', function (e) {
+      if (!db) return;
+      var td = todayKey();
+
+      if (!e.target || e.target === window) {
+        /* --- JS Error --- */
+        safeTx('analytics/health/' + td + '/errors', 1);
+        var ref = db.ref('analytics/health/' + td + '/errorDetails').push();
+        ref.set({
+          msg: (e.message || 'Unknown error').substring(0, 300),
+          file: (e.filename || '').substring(0, 150),
+          line: e.lineno || 0,
+          col: e.colno || 0,
+          pg: pageName(),
+          fullRoute: fullRoute(),
+          dev: getDevice(),
+          brw: getBrowser(),
+          country: country,
+          ts: Date.now()
+        }).catch(function () { });
+        trimNode('analytics/health/' + td + '/errorDetails', MAX_HEALTH_DETAILS);
+      } else {
+        /* --- Resource Error --- */
+        safeTx('analytics/health/' + td + '/resourceErrors', 1);
+        var src = '';
+        var tag = (e.target.tagName || 'unknown').toLowerCase();
+        if (tag === 'img') src = 'img:' + (e.target.src || '').substring(0, 200);
+        else if (tag === 'script') src = 'script:' + (e.target.src || '').substring(0, 200);
+        else if (tag === 'link') src = 'css:' + (e.target.href || '').substring(0, 200);
+        else if (tag === 'video' || tag === 'audio' || tag === 'source') src = 'media:' + (e.target.src || '').substring(0, 200);
+        else src = tag + ':' + ((e.target.src || e.target.href || '').substring(0, 200));
+
+        var ref2 = db.ref('analytics/health/' + td + '/resourceErrorDetails').push();
+        ref2.set({ src: src, tag: tag, pg: pageName(), country: country, ts: Date.now() }).catch(function () { });
+        trimNode('analytics/health/' + td + '/resourceErrorDetails', MAX_HEALTH_DETAILS);
+      }
+    }, true);
+
+    window.addEventListener('unhandledrejection', function (e) {
+      if (!db) return;
+      var td = todayKey();
+      safeTx('analytics/health/' + td + '/unhandledRejections', 1);
+      var reason = '';
+      try { reason = String(e.reason).substring(0, 300); } catch (ex) { reason = 'Unknown'; }
+      var ref = db.ref('analytics/health/' + td + '/rejectionDetails').push();
+      ref.set({ reason: reason, pg: pageName(), country: country, ts: Date.now() }).catch(function () { });
+      trimNode('analytics/health/' + td + '/rejectionDetails', MAX_HEALTH_DETAILS);
+    });
+  }
+
+  /* ===========================
+     BEHAVIOR TRACKING
+     =========================== */
+
+  var hasInteracted = false;
+  var bounceRecorded = false;
+  var sessionPageViews = 0;
+  var sessionClicks = 0;
+  var sessionSearches = 0;
+  var sessionScrollMax = 0;
+  var sessionStateChanges = 0;
+
+  function markInteracted() { hasInteracted = true; }
+
+  function trackScrollDepth() {
+    var reported = {};
+    var milestones = [25, 50, 75, 90, 100];
+    var scrollTimer;
+
+    window.addEventListener('scroll', function () {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(function () {
+        var st = window.pageYOffset || document.documentElement.scrollTop;
+        var dh = document.documentElement.scrollHeight - window.innerHeight;
+        var pct = dh > 0 ? Math.min(100, Math.round((st / dh) * 100)) : 0;
+        milestones.forEach(function (m) {
+          if (pct >= m && !reported[m]) {
+            reported[m] = true;
+            markInteracted();
+            enqueue({ type: 'scroll', page: pageName(), depth: m });
+          }
+        });
+      }, 150);
+    }, { passive: true });
+  }
+
+  function trackStateChanges() {
+    /* Detailed route changes */
+    window.addEventListener('hashchange', function (e) {
+      var from = 'unknown', to = 'unknown', fullFrom = '', fullTo = '';
+      try {
+        fullFrom = new URL(e.oldURL).hash.slice(1) || 'home';
+        fullTo = new URL(e.newURL).hash.slice(1) || 'home';
+        from = fullFrom.split('/')[0];
+        to = fullTo.split('/')[0];
+      } catch (ex) { }
+      markInteracted();
+      enqueue({ type: 'route_change', from: from, to: to, fullFrom: fullFrom, fullTo: fullTo });
+    });
+
+    /* localStorage state changes from other tabs */
+    var ignoredKeys = [FP_KEY, SES_KEY, FV_KEY, VC_KEY, CTRY_KEY, CTRY_TS, CTRY_CITY_KEY];
+    window.addEventListener('storage', function (e) {
+      if (e.key && ignoredKeys.indexOf(e.key) === -1) {
+        markInteracted();
+        sessionStateChanges++;
+        enqueue({
+          type: 'state_change',
+          key: e.key,
+          oldValue: (e.oldValue || '').substring(0, 80),
+          newValue: (e.newValue || '').substring(0, 80)
+        });
+      }
+    });
+
+    /* Tab visibility — track hidden time */
+    var hiddenTime = 0;
+    document.addEventListener('visibilitychange', function () {
+      var now = Date.now();
+      if (document.visibilityState === 'hidden') {
+        hiddenTime = now;
+        enqueue({ type: 'tab_hidden', page: pageName() });
+      } else if (hiddenTime > 0) {
+        var awayMs = now - hiddenTime;
+        enqueue({ type: 'tab_visible', page: pageName(), awayMs: awayMs });
+        if (awayMs > 1000 && db) {
+          safeTx('analytics/daily/' + todayKey() + '/awayTime', Math.round(awayMs / 1000));
+        }
+        hiddenTime = 0;
+      }
+    });
+
+    /* Orientation change */
+    window.addEventListener('orientationchange', function () {
+      var orient = 'unknown';
+      try { orient = screen.orientation ? screen.orientation.type : (window.innerWidth > window.innerHeight ? 'landscape-primary' : 'portrait-primary'); } catch (ex) { }
+      enqueue({ type: 'orientation', page: pageName(), orientation: orient });
+    });
+
+    /* Resize (debounced) */
+    var resizeTimer;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        enqueue({ type: 'resize', page: pageName(), w: window.innerWidth, h: window.innerHeight });
+      }, 2000);
+    });
+
+    /* Online / Offline transitions */
+    window.addEventListener('online', function () {
+      enqueue({ type: 'connection_change', page: pageName(), status: 'online' });
+    });
+    window.addEventListener('offline', function () {
+      enqueue({ type: 'connection_change', page: pageName(), status: 'offline' });
+    });
+  }
+
+  function trackSearchQueries() {
+    var searchTimers = {};
+
+    document.addEventListener('input', function (e) {
+      var el = e.target;
+      if (!el) return;
+      var isSearch = el.type === 'search' ||
+        (el.placeholder && /search|بحث|chercher|بحث|buscar|rechercher|找/i.test(el.placeholder)) ||
+        (el.name && /search|query|q|keyword/i.test(el.name)) ||
+        (el.id && /search|query/i.test(el.id)) ||
+        el.closest('.search-box, .search-bar, .search-container, [role="search"]');
+
+      if (!isSearch) return;
+
+      var elId = el.id || el.name || el.placeholder || 'search';
+      clearTimeout(searchTimers[elId]);
+      searchTimers[elId] = setTimeout(function () {
+        var query = el.value.trim();
+        if (query.length >= 2) {
+          markInteracted();
+          enqueue({ type: 'search', page: pageName(), query: query });
+        }
+      }, 1200);
+    });
+
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form) return;
+      var input = form.querySelector(
+        'input[type="search"], input[type="text"][name*="search"], ' +
+        'input[type="text"][name*="q"], input[name*="search"], ' +
+        'input[name*="query"], input[name*="keyword"]'
+      );
+      if (input && input.value.trim().length >= 2) {
+        markInteracted();
+        enqueue({ type: 'search_submit', page: pageName(), query: input.value.trim() });
+      }
+    });
+  }
+
+  function trackFormSubmissions() {
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form) return;
+      var id = form.id || form.action || form.className || form.name || 'unknown';
+      markInteracted();
+      enqueue({ type: 'form_submit', page: pageName(), formId: id.substring(0, 80) });
+    });
+  }
+
+  function trackExternalLinks() {
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest('a[href]');
+      if (!link) return;
+      var href = link.href || '';
+
+      var isExternal = href.startsWith('http') && !href.includes(location.hostname);
+      var isDownload = link.hasAttribute('download') ||
+        /\.(pdf|zip|rar|7z|doc|docx|xls|xlsx|ppt|pptx|csv|txt|exe|dmg|apk|mp[34]|wav|ogg|avi|mov)(\?|#|$)/i.test(href);
+      var isMailto = href.startsWith('mailto:');
+      var isTel = href.startsWith('tel:');
+
+      if (isExternal) {
+        markInteracted();
+        enqueue({
+          type: 'external_link',
+          page: pageName(),
+          url: href.substring(0, 250),
+          label: (link.textContent || '').trim().substring(0, 80)
+        });
+      }
+      if (isDownload) {
+        markInteracted();
+        enqueue({
+          type: 'download',
+          page: pageName(),
+          url: href.substring(0, 250),
+          label: (link.textContent || '').trim().substring(0, 80)
+        });
+      }
+      if (isMailto) {
+        markInteracted();
+        enqueue({
+          type: 'mailto',
+          page: pageName(),
+          email: href.replace('mailto:', '').substring(0, 80)
+        });
+      }
+      if (isTel) {
+        markInteracted();
+        enqueue({
+          type: 'tel_click',
+          page: pageName(),
+          phone: href.replace('tel:', '').substring(0, 30)
+        });
+      }
+    });
+  }
+
+  function detectBounce() {
+    window.addEventListener('beforeunload', function () {
+      if (bounceRecorded) return;
+      var elapsed = Date.now() - startTs;
+      if (elapsed < 5000 && !hasInteracted) {
+        bounceRecorded = true;
+        if (db) safeTx('analytics/daily/' + todayKey() + '/bounces', 1);
+      }
+    });
+  }
+
+  /* ===========================
+     QUEUE & FLUSH ENGINE
+     =========================== */
+
+  var db = null;
+  var fp = null;
+  var sid = null;
+  var startTs = 0;
+  var flushed = false;
+  var visitTracked = false;
+  var presRef = null;
+  var eventQueue = [];
+  var flushTimer = null;
+  var clickFlushTimer = null;
 
   function enqueue(event) {
     eventQueue.push({
-      ...event,
       ts: Date.now(),
       fp: fp,
       sid: sid,
@@ -2019,36 +2661,67 @@ const SiteAnalytics = (function () {
       brw: getBrowser(),
       os: getOS(),
       scr: screen.width + 'x' + screen.height,
-      ref: getReferrer()
+      ref: getReferrer(),
+      country: country,
+      city: city,
+      type: event.type,
+      page: event.page,
+      label: event.label || '',
+      depth: event.depth,
+      from: event.from,
+      to: event.to,
+      fullFrom: event.fullFrom || '',
+      fullTo: event.fullTo || '',
+      key: event.key || '',
+      oldValue: event.oldValue || '',
+      newValue: event.newValue || '',
+      query: event.query || '',
+      formId: event.formId || '',
+      url: event.url || '',
+      email: event.email || '',
+      phone: event.phone || '',
+      awayMs: event.awayMs || 0,
+      orientation: event.orientation || '',
+      w: event.w || 0,
+      h: event.h || 0,
+      status: event.status || '',
+      isNew: event.isNew || false,
+      visitCount: event.visitCount || 0,
+      eventType: event.eventType || '',
+      data: event.data || {}
     });
-    if (eventQueue.length >= 50) flushQueue();
+    if (eventQueue.length >= MAX_QUEUE) flushQueue();
   }
 
-  /* Transaction-only counter increment — never overwrites */
   function safeTx(path, delta) {
     if (!db) return;
-    try {
-      db.ref(path).transaction(function (v) {
-        return (v || 0) + delta;
-      });
-    } catch (e) { /* silent */ }
+    try { db.ref(path).transaction(function (v) { return (v || 0) + delta; }); } catch (e) { }
   }
 
-  /* Trim the recent-events node to 100 entries max */
-  function trimRecent() {
+  function trimNode(nodePath, max) {
     if (!db) return;
-    db.ref('analytics/recent').orderByKey().limitToFirst(200).once('value').then(function (snap) {
+    db.ref(nodePath).orderByKey().limitToFirst(max + 100).once('value').then(function (snap) {
       var data = snap.val();
       if (data) {
         var keys = Object.keys(data);
-        if (keys.length > 100) {
-          var toRemove = keys.slice(0, keys.length - 100);
+        if (keys.length > max) {
+          var toRemove = keys.slice(0, keys.length - max);
           var deletes = {};
-          toRemove.forEach(function (k) { deletes['analytics/recent/' + k] = null; });
-          db.ref().update(deletes).catch(function () {});
+          toRemove.forEach(function (k) { deletes[nodePath + '/' + k] = null; });
+          db.ref().update(deletes).catch(function () { });
         }
       }
-    }).catch(function () {});
+    }).catch(function () { });
+  }
+
+  function computeEngagementScore() {
+    var timePts = Math.min(30, Math.floor((Date.now() - startTs) / 6000));
+    var viewsPts = Math.min(20, sessionPageViews * 5);
+    var clicksPts = Math.min(20, sessionClicks * 2);
+    var scrollPts = Math.min(15, Math.floor(sessionScrollMax / 100 * 15));
+    var searchPts = Math.min(10, sessionSearches * 5);
+    var statePts = Math.min(5, sessionStateChanges);
+    return Math.min(100, timePts + viewsPts + clicksPts + scrollPts + searchPts + statePts);
   }
 
   function flushQueue() {
@@ -2056,103 +2729,201 @@ const SiteAnalytics = (function () {
     var batch = eventQueue.splice(0, eventQueue.length);
     var td = todayKey();
 
-    /* Aggregate from batch */
-    var views = 0, clickCount = 0;
-    var pageViews = {};
-    var pageClicks = {};
-    var clickDetails = [];
-    var referrers = {};
-    var devices = {};
-    var browsers = {};
+    /* --- Aggregate --- */
+    var views = 0, clickCount = 0, routeChanges = 0, formSubmits = 0;
+    var externalLinks = 0, downloads = 0, mailtos = 0, telClicks = 0;
+    var tabHides = 0, connChanges = 0;
+    var pageViews = {}, pageClicks = {}, clickDetails = [];
+    var referrers = {}, devices = {}, browsers = {};
+    var scrollCounts = {}, stateChangeKeys = {}, searchQueries = {};
+    var customEvents = {}, orientations = {};
+    var routeFlows = {};
 
     batch.forEach(function (ev) {
-      if (ev.type === 'view') {
-        views++;
-        pageViews[ev.page] = (pageViews[ev.page] || 0) + 1;
-      }
-      if (ev.type === 'click') {
-        clickCount++;
-        pageClicks[ev.page] = (pageClicks[ev.page] || 0) + 1;
-        clickDetails.push({
-          page: ev.page,
-          label: (ev.label || '').substring(0, 80),
-          dev: ev.dev,
-          brw: ev.brw,
-          ts: ev.ts
-        });
+      switch (ev.type) {
+        case 'view':
+          views++; sessionPageViews++;
+          pageViews[ev.page] = (pageViews[ev.page] || 0) + 1;
+          break;
+        case 'click':
+          clickCount++; sessionClicks++;
+          pageClicks[ev.page] = (pageClicks[ev.page] || 0) + 1;
+          if (clickDetails.length < 20) {
+            clickDetails.push({
+              page: ev.page, label: ev.label.substring(0, 80),
+              dev: ev.dev, brw: ev.brw, country: ev.country, ts: ev.ts
+            });
+          }
+          break;
+        case 'scroll':
+          var dk = ev.depth + '%';
+          scrollCounts[dk] = (scrollCounts[dk] || 0) + 1;
+          sessionScrollMax = Math.max(sessionScrollMax, ev.depth);
+          break;
+        case 'route_change':
+          routeChanges++;
+          if (ev.from && ev.to) {
+            var flowKey = ev.from + ' → ' + ev.to;
+            routeFlows[flowKey] = (routeFlows[flowKey] || 0) + 1;
+          }
+          break;
+        case 'state_change':
+          stateChangeKeys[ev.key] = (stateChangeKeys[ev.key] || 0) + 1;
+          break;
+        case 'search': case 'search_submit':
+          var q = ev.query.toLowerCase().trim().substring(0, 60);
+          if (q) { searchQueries[q] = (searchQueries[q] || 0) + 1; sessionSearches++; }
+          break;
+        case 'form_submit':
+          formSubmits++;
+          break;
+        case 'external_link':
+          externalLinks++;
+          break;
+        case 'download':
+          downloads++;
+          break;
+        case 'mailto':
+          mailtos++;
+          break;
+        case 'tel_click':
+          telClicks++;
+          break;
+        case 'custom':
+          var cKey = ev.eventType + (ev.label ? '/' + ev.label : '');
+          customEvents[cKey] = (customEvents[cKey] || 0) + 1;
+          break;
+        case 'tab_hidden':
+          tabHides++;
+          break;
+        case 'connection_change':
+          connChanges++;
+          break;
+        case 'orientation':
+          orientations[ev.orientation] = (orientations[ev.orientation] || 0) + 1;
+          break;
       }
       if (ev.ref) referrers[ev.ref] = (referrers[ev.ref] || 0) + 1;
       devices[ev.dev] = (devices[ev.dev] || 0) + 1;
       browsers[ev.brw] = (browsers[ev.brw] || 0) + 1;
     });
 
-    /* Only non-counter data goes into .update() — never counters */
+    /* --- Non-counter updates --- */
     var updates = {};
-
-    /* Session duration (set, not increment — stores latest value) */
     var dur = Math.round((Date.now() - startTs) / 1000);
     if (dur >= 2) {
       updates['analytics/daily/' + td + '/duration'] = dur;
       safeTx('analytics/daily/' + td + '/sessions', 1);
     }
+    updates['analytics/daily/' + td + '/engagement'] = computeEngagementScore();
 
-    /* Recent click events (push keys) */
-    var recentSlice = clickDetails.slice(-20);
-    recentSlice.forEach(function (ev) {
-      var pushRef = db.ref('analytics/recent').push();
-      updates['analytics/recent/' + pushRef.key] = ev;
+    clickDetails.forEach(function (ev) {
+      var pk = db.ref('analytics/recent').push().key;
+      updates['analytics/recent/' + pk] = ev;
     });
 
-    /* Write non-counter data in one batch */
     if (Object.keys(updates).length > 0) {
-      db.ref().update(updates).catch(function () {});
+      db.ref().update(updates).catch(function () { });
     }
 
-    /* ALL numeric counters use transactions exclusively — no overwriting, no null-deletes */
+    /* --- Transaction counters --- */
     if (views > 0) safeTx('analytics/daily/' + td + '/views', views);
     if (clickCount > 0) safeTx('analytics/daily/' + td + '/clicks', clickCount);
+    if (routeChanges > 0) safeTx('analytics/daily/' + td + '/routeChanges', routeChanges);
+    if (formSubmits > 0) safeTx('analytics/daily/' + td + '/formSubmits', formSubmits);
+    if (externalLinks > 0) safeTx('analytics/daily/' + td + '/externalLinks', externalLinks);
+    if (downloads > 0) safeTx('analytics/daily/' + td + '/downloads', downloads);
+    if (mailtos > 0) safeTx('analytics/daily/' + td + '/mailtos', mailtos);
+    if (telClicks > 0) safeTx('analytics/daily/' + td + '/telClicks', telClicks);
+    if (tabHides > 0) safeTx('analytics/daily/' + td + '/tabHides', tabHides);
+    if (connChanges > 0) safeTx('analytics/daily/' + td + '/connectionChanges', connChanges);
 
-    Object.keys(pageViews).forEach(function (pg) {
-      safeTx('analytics/pages/' + pg + '/views', pageViews[pg]);
-    });
-    Object.keys(pageClicks).forEach(function (pg) {
-      safeTx('analytics/pages/' + pg + '/clicks', pageClicks[pg]);
-    });
-    Object.keys(referrers).forEach(function (ref) {
-      safeTx('analytics/referrers/' + ref, referrers[ref]);
-    });
-    Object.keys(devices).forEach(function (dev) {
-      safeTx('analytics/devices/' + dev, devices[dev]);
-    });
-    Object.keys(browsers).forEach(function (brw) {
-      safeTx('analytics/browsers/' + brw, browsers[brw]);
-    });
+    /* Page-level */
+    for (var pg in pageViews) safeTx('analytics/pages/' + pg + '/views', pageViews[pg]);
+    for (var pg2 in pageClicks) safeTx('analytics/pages/' + pg2 + '/clicks', pageClicks[pg2]);
 
-    /* Prune old recent entries */
-    trimRecent();
+    /* Scroll depth */
+    for (var dk in scrollCounts) safeTx('analytics/daily/' + td + '/scroll/' + dk, scrollCounts[dk]);
+
+    /* Route flows */
+    for (var rf in routeFlows) safeTx('analytics/routeFlows/' + rf, routeFlows[rf]);
+
+    /* Referrers, devices, browsers */
+    for (var ref in referrers) safeTx('analytics/referrers/' + ref, referrers[ref]);
+    for (var dev in devices) safeTx('analytics/devices/' + dev, devices[dev]);
+    for (var brw in browsers) safeTx('analytics/browsers/' + brw, browsers[brw]);
+
+    /* Countries & cities */
+    if (country !== 'unknown') {
+      safeTx('analytics/countries/' + country, 1);
+      safeTx('analytics/daily/' + td + '/countries/' + country, 1);
+    }
+    if (city !== 'unknown' && country !== 'unknown') {
+      safeTx('analytics/cities/' + country + '/' + city, 1);
+    }
+    if (region !== 'unknown' && country !== 'unknown') {
+      safeTx('analytics/regions/' + country + '/' + region, 1);
+    }
+
+    /* State changes */
+    for (var sk in stateChangeKeys) safeTx('analytics/stateChanges/' + sk, stateChangeKeys[sk]);
+
+    /* Search queries */
+    for (var sq in searchQueries) safeTx('analytics/searches/' + sq, searchQueries[sq]);
+
+    /* Custom events */
+    for (var ce in customEvents) safeTx('analytics/events/' + ce, customEvents[ce]);
+
+    /* Orientations */
+    for (var oo in orientations) safeTx('analytics/orientations/' + oo, orientations[oo]);
+
+    /* Prune */
+    trimNode('analytics/recent', MAX_RECENT);
   }
 
-  function trackVisit(isNew) {
-    if (!db) return;
+  function trackVisit(isNew, visitCount) {
+    if (!db || visitTracked) return;
+    visitTracked = true;
     var pg = pageName();
     var td = todayKey();
+    var visitCat = getVisitCategory(visitCount);
 
-    /* Unique daily visitor (once per fingerprint per day) */
     var dk = 'adv_' + td + '_' + fp;
     if (!sessionStorage.getItem(dk)) {
       sessionStorage.setItem(dk, '1');
       safeTx('analytics/daily/' + td + '/visitors', 1);
       safeTx('analytics/daily/' + td + '/' + (isNew ? 'newVisitors' : 'returningVisitors'), 1);
+      safeTx('analytics/daily/' + td + '/visitCategories/' + visitCat, 1);
     }
 
-    /* Unique page visitor */
     var pk = 'apv_' + pg + '_' + fp;
     if (!sessionStorage.getItem(pk)) {
       sessionStorage.setItem(pk, '1');
       safeTx('analytics/pages/' + pg + '/visitors', 1);
     }
 
-    /* First visit fingerprint record (write once) */
+    if (country !== 'unknown') {
+      var ck = 'ac_' + country + '_' + fp;
+      if (!sessionStorage.getItem(ck)) {
+        sessionStorage.setItem(ck, '1');
+        safeTx('analytics/countryVisitors/' + country, 1);
+      }
+    }
+
+    /* Dark mode tracking */
+    if (getDarkMode()) safeTx('analytics/daily/' + td + '/darkModeUsers', 1);
+    if (getReducedMotion()) safeTx('analytics/daily/' + td + '/reducedMotionUsers', 1);
+
+    /* Input method tracking */
+    safeTx('analytics/daily/' + td + '/inputMethods/' + getInputMethod(), 1);
+
+    /* Ad blocker tracking */
+    if (detectAdBlocker()) safeTx('analytics/daily/' + td + '/adBlockerUsers', 1);
+
+    /* Language tracking */
+    var lang = (navigator.language || 'unknown').split('-')[0];
+    safeTx('analytics/daily/' + td + '/languages/' + lang, 1);
+
     if (isNew) {
       db.ref('analytics/fingerprints/' + fp).set({
         firstSeen: Date.now(),
@@ -2160,11 +2931,19 @@ const SiteAnalytics = (function () {
         brw: getBrowser(),
         os: getOS(),
         scr: screen.width + 'x' + screen.height,
-        ref: getReferrer()
-      }).catch(function () {});
+        ref: getReferrer(),
+        country: country,
+        city: city,
+        region: region,
+        lang: navigator.language,
+        darkMode: getDarkMode(),
+        inputMethod: getInputMethod(),
+        adBlocker: detectAdBlocker()
+      }).catch(function () { });
     }
 
-    enqueue({ type: 'view', page: pg, isNew: isNew });
+    safeTx('analytics/visitFrequency/' + visitCat, 1);
+    enqueue({ type: 'view', page: pg, isNew: isNew, visitCount: visitCount });
   }
 
   function flush() {
@@ -2173,18 +2952,50 @@ const SiteAnalytics = (function () {
     flushQueue();
   }
 
+  /* ===========================
+     PRESENCE
+     =========================== */
+
   function setupPresence() {
     if (!db || presRef) return;
     presRef = db.ref('analytics/live/' + fp);
     presRef.onDisconnect().remove();
-    presRef.set({ pg: pageName(), dev: getDevice(), brw: getBrowser(), t: Date.now() });
+    presRef.set({
+      pg: pageName(),
+      fullRoute: fullRoute(),
+      dev: getDevice(),
+      brw: getBrowser(),
+      country: country,
+      city: city,
+      t: Date.now()
+    });
     var hb = setInterval(function () {
-      try { presRef.update({ pg: pageName(), t: Date.now() }); } catch (e) { clearInterval(hb); }
-    }, 25000);
+      try { presRef.update({ pg: pageName(), fullRoute: fullRoute(), t: Date.now() }); }
+      catch (e) { clearInterval(hb); }
+    }, HEARTBEAT_INTERVAL);
     window.addEventListener('hashchange', function () {
-      try { presRef.update({ pg: pageName(), t: Date.now() }); } catch (e) { /* */ }
+      try { presRef.update({ pg: pageName(), fullRoute: fullRoute(), t: Date.now() }); }
+      catch (e) { }
     });
   }
+
+  /* ===========================
+     PUBLIC API
+     =========================== */
+
+  function trackEvent(eventType, label, data) {
+    markInteracted();
+    enqueue({ type: 'custom', eventType: eventType, label: label || '', data: data || {} });
+  }
+
+  /* Expose getters for health dashboard */
+  function getHealthMetrics() { return healthMetrics; }
+  function getCountry() { return country; }
+  function getCity() { return city; }
+
+  /* ===========================
+     INIT
+     =========================== */
 
   function init(analyticsDb) {
     db = analyticsDb;
@@ -2192,57 +3003,111 @@ const SiteAnalytics = (function () {
     fp = getFingerprint();
     sid = getSessionId();
     var isNew = isFirstVisit();
+    var visitCount = getVisitCount();
     startTs = Date.now();
 
-    trackVisit(isNew);
-
-    window.addEventListener('hashchange', function () {
-      trackVisit(false);
+    /* Country detection (non-blocking) */
+    detectCountry(function (cc, c) {
+      country = cc;
+      city = c;
+      trackVisit(isNew, visitCount);
+      setupPresence();
     });
 
+    /* Fallback if geo takes too long */
+    setTimeout(function () {
+      if (!visitTracked) {
+        trackVisit(isNew, visitCount);
+        setupPresence();
+      }
+    }, 4500);
+
+    /* Click tracking — expanded selectors */
     document.addEventListener('click', function (e) {
       var el = e.target.closest(
         'button, a, .artwork-card, .artist-profile-card, .nav-link, ' +
-        '.btn, [role="button"], .search-view-btn, .dropdown-item, .tab'
+        '.btn, [role="button"], .search-view-btn, .dropdown-item, .tab, ' +
+        '.filter-btn, .sort-btn, .toggle, .accordion-trigger, .carousel-btn, ' +
+        '.modal-trigger, .close-btn, .menu-item, .breadcrumb-item, ' +
+        '.pagination-btn, .share-btn, .favorite-btn, .like-btn, ' +
+        '.comment-btn, .play-btn, .zoom-btn, .expand-btn, ' +
+        '[data-action], [data-id], [data-artwork-id], [data-artist], ' +
+        '[data-page], [data-tab], [data-curr], [data-lang], ' +
+        '[data-filter], [data-sort], [data-category]'
       );
       if (!el) return;
 
+      markInteracted();
+      sessionClicks++;
+
       var lbl = '';
-      if (el.dataset.id) lbl = el.dataset.id;
+      if (el.dataset.action) lbl = 'action:' + el.dataset.action;
+      else if (el.dataset.id) lbl = el.dataset.id;
       else if (el.dataset.artworkId) lbl = el.dataset.artworkId;
       else if (el.dataset.artist) lbl = el.dataset.artist;
       else if (el.dataset.page) lbl = el.dataset.page;
       else if (el.dataset.tab) lbl = 'tab:' + el.dataset.tab;
       else if (el.dataset.curr) lbl = 'currency:' + el.dataset.curr;
       else if (el.dataset.lang) lbl = 'lang:' + el.dataset.lang;
-      else if (el.textContent) lbl = el.textContent.trim().substring(0, 80);
+      else if (el.dataset.filter) lbl = 'filter:' + el.dataset.filter;
+      else if (el.dataset.sort) lbl = 'sort:' + el.dataset.sort;
+      else if (el.dataset.category) lbl = 'category:' + el.dataset.category;
       else if (el.getAttribute('aria-label')) lbl = el.getAttribute('aria-label');
+      else if (el.textContent) lbl = el.textContent.trim().substring(0, 80);
       if (!lbl) lbl = el.tagName.toLowerCase();
 
       enqueue({ type: 'click', page: pageName(), label: lbl });
-
-      /* Flush clicks after 2 seconds of inactivity so data appears fast */
       clearTimeout(clickFlushTimer);
-      clickFlushTimer = setTimeout(flushQueue, 2000);
+      clickFlushTimer = setTimeout(flushQueue, CLICK_FLUSH_DELAY);
     });
 
-    setupPresence();
+    /* Setup all tracking modules */
+    trackScrollDepth();
+    trackStateChanges();
+    trackSearchQueries();
+    trackFormSubmissions();
+    trackExternalLinks();
+    trackAllErrors();
+    detectBounce();
 
-    flushTimer = setInterval(flushQueue, 30000);
+    /* Performance & health */
+    observeModernMetrics();
+    if (document.readyState === 'complete') {
+      setTimeout(writeHealthSnapshot, 600);
+    } else {
+      window.addEventListener('load', function () { setTimeout(writeHealthSnapshot, 600); });
+    }
+
+    /* Periodic health recheck */
+    setInterval(function () {
+      if (db) {
+        var sc = calculateHealthScore();
+        db.ref('analytics/health/score').set(sc).catch(function () { });
+        db.ref('analytics/health/status').set(getHealthStatus(sc)).catch(function () { });
+      }
+    }, HEALTH_RECHECK);
+
+    /* Flush timers */
+    flushTimer = setInterval(flushQueue, FLUSH_INTERVAL);
     window.addEventListener('beforeunload', flush);
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'hidden') flushQueue();
     });
   }
 
-  return { init: init };
+  return {
+    init: init,
+    trackEvent: trackEvent,
+    getHealthMetrics: getHealthMetrics,
+    getCountry: getCountry,
+    getCity: getCity
+  };
 })();
 
 
+/* --- Offline/Online guard (unchanged) --- */
 !function () {
-  /* Don't run on admin pages */
   if (location.pathname.includes('admin')) return;
-
   function handleConnection() {
     if (navigator.onLine && location.pathname.includes('offline')) {
       window.location.replace('index.html');
@@ -2250,7 +3115,6 @@ const SiteAnalytics = (function () {
       window.location.replace('offline.html');
     }
   }
-
   handleConnection();
   window.addEventListener('online', handleConnection);
   window.addEventListener('offline', handleConnection);
