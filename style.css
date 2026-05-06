@@ -734,21 +734,23 @@ ul, ol { list-style: none; }
 .nav-logo {
   padding: 3px;
   border-radius: 8px;
-  border: 1.5px solid var(--accent);
-  background: rgba(184, 134, 11, 0.05); /* Very faint gold background */
+  border: 1.5px solid var(--accent, #b8860b);
+  background: rgba(184, 134, 11, 0.05);
   box-shadow: 0 0 8px rgba(184, 134, 11, 0.2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
+  line-height: 0;
 }
 
 .nav-logo:hover {
-  border-color: var(--accent-hover);
+  border-color: var(--accent-hover, #daa520);
   box-shadow: 0 0 15px rgba(184, 134, 11, 0.4);
   transform: scale(1.02);
 }
 
+.nav-logo img,
 .nav-logo-img {
   height: 40px;
   width: auto;
