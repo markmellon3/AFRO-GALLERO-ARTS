@@ -494,6 +494,7 @@ function initUIListeners() {
       if (!isOpen) dd.classList.add('open');
     });
   });
+  document.getElementById('msgNavBtn')?.addEventListener('click', () => location.hash = 'messages');
   document.querySelectorAll('[data-curr]').forEach(btn => btn.addEventListener('click', () => setCurrency(btn.dataset.curr)));
   document.addEventListener('click', (e) => {
     if (searchResultsPanel && searchResultsPanel.contains(e.target)) return;
@@ -645,6 +646,9 @@ function initPublicAuth() {
       if (document.getElementById('page-favorites')?.classList.contains('active')) {
         renderFavorites();
       }
+            /* Attach unread message listener */
+      MessageInbox.attachUnreadListener();
+      MessageInbox.updateMsgBadge();
     } else {
       /* Logged out — clear local favorites */
       saveFavoritesLocal([]);
@@ -654,6 +658,8 @@ function initPublicAuth() {
         renderFavorites();
       }
     }
+          /* Detach unread listener on logout */
+      MessageInbox.detachUnreadListener();
   });
 }
 
@@ -764,7 +770,8 @@ function navigateTo(page) {
   if (page === 'auctions') loadAuctions();
   if (page === 'price-database') loadPriceDatabase(document.getElementById('pdCurrencyFilter')?.value || 'UGX');
   if (page === 'artists') renderArtistProfiles(true);
-}
+  if (page === 'messages') MessageInbox.renderInbox();
+  }
 
 function handleHash() {
   const hash = location.hash.slice(1);
@@ -780,8 +787,12 @@ function handleHash() {
     renderArtistDetailPage(name);
     return;
   }
+  if (hash === 'messages') {
+    navigateTo('messages');
+    return;
+  }
   navigateTo(hash || 'home');
-}
+  }
 
 /* ============================================
    FIREBASE: SINGLE DB DATA FETCHING FROM user_information
@@ -1335,68 +1346,116 @@ function buildArtistProfileHTML(artistName, about, artistArtworks) {
 }
 
 /* ============================================
-   ORDER FORM MODAL
+   ORDER FORM MODAL (UPDATED: Checks login,
+   uses MessageInbox for thread creation)
    ============================================ */
 let currentOrderArtwork = null;
 function openOrderFormForArtwork(artwork) {
+  /* STEP 1: Check if user is logged in */
+  if (!auth || !auth.currentUser) {
+    showToast('Please sign in to place an order', 'error');
+    const authModal = document.getElementById('authModal');
+    if (authModal) {
+      authModal.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      const loginTab = authModal.querySelector('[data-auth-tab="login"]');
+      if (loginTab) loginTab.click();
+    }
+    return;
+  }
+
   currentOrderArtwork = artwork;
   let modal = document.getElementById('clientOrderModal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'clientOrderModal';
     modal.className = 'modal-overlay';
-    modal.innerHTML = `<div class="auth-modal-container" role="dialog" aria-modal="true">
-      <button class="modal-close" id="orderModalClose"><i data-lucide="x" style="width:20px;height:20px;"></i></button>
-      <h2 style="font-size:1.3rem;font-weight:700;margin-bottom:1rem;">Place Your Order</h2>
-      <div id="orderArtSummary" style="display:flex;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius);"></div>
-      <form id="clientOrderForm">
-        <div class="form-group"><label>Your Name *</label><input type="text" id="orderName" required placeholder="John Doe"></div>
-        <div class="form-group"><label>Email Address *</label><input type="email" id="orderEmail" required placeholder="you@example.com"></div>
-        <div class="form-group"><label>Phone / WhatsApp</label><input type="tel" id="orderPhone" placeholder="+256 700..."></div>
-        <div class="form-group"><label>Message / Notes</label><textarea id="orderMessage" rows="3" placeholder="Any specific inquiries about this piece..."></textarea></div>
-        <div class="form-error hidden" id="orderError"></div>
-        <button type="submit" class="btn btn-primary btn-full">Submit Order Request</button>
-      </form>
-    </div>`;
+    modal.innerHTML = '<div class="auth-modal-container" role="dialog" aria-modal="true">'
+      + '<button class="modal-close" id="orderModalClose"><i data-lucide="x" style="width:20px;height:20px;"></i></button>'
+      + '<h2 style="font-size:1.3rem;font-weight:700;margin-bottom:1rem;">Place Your Order</h2>'
+      + '<div id="orderArtSummary" style="display:flex;gap:1rem;margin-bottom:1.5rem;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius);"></div>'
+      + '<form id="clientOrderForm">'
+      + '<div class="form-group"><label>Your Name *</label><input type="text" id="orderName" required placeholder="John Doe"></div>'
+      + '<div class="form-group"><label>Email Address *</label><input type="email" id="orderEmail" required placeholder="you@example.com"></div>'
+      + '<div class="form-group"><label>Phone / WhatsApp</label><input type="tel" id="orderPhone" placeholder="+256 700..."></div>'
+      + '<div class="form-group"><label>Message / Notes</label><textarea id="orderMessage" rows="3" placeholder="Any specific inquiries about this piece..."></textarea></div>'
+      + '<div class="form-error hidden" id="orderError"></div>'
+      + '<button type="submit" class="btn btn-primary btn-full">Submit Order Request</button>'
+      + '</form></div>';
     document.body.appendChild(modal);
     lucide.createIcons({ nodes: [modal] });
     modal.querySelector('#orderModalClose').addEventListener('click', () => { modal.classList.remove('open'); document.body.style.overflow = ''; });
     modal.addEventListener('click', (e) => { if (e.target === modal) { modal.classList.remove('open'); document.body.style.overflow = ''; } });
+
+    /* Updated submit handler — uses MessageInbox */
     modal.querySelector('#clientOrderForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const errEl = modal.querySelector('#orderError');
       errEl.classList.add('hidden');
       const name = modal.querySelector('#orderName').value.trim();
       const email = modal.querySelector('#orderEmail').value.trim();
-      if (!name || !email) { errEl.textContent = "Name and email are required."; errEl.classList.remove('hidden'); return; }
+      const phone = modal.querySelector('#orderPhone').value.trim();
+      const message = modal.querySelector('#orderMessage').value.trim();
+
+      if (!name || !email) {
+        errEl.textContent = 'Name and email are required.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
       const btn = modal.querySelector('button[type="submit"]');
-      btn.disabled = true; btn.textContent = 'Submitting...';
-      const orderData = {
-        clientName: name, clientEmail: email,
-        clientPhone: modal.querySelector('#orderPhone').value.trim(),
-        clientMessage: modal.querySelector('#orderMessage').value.trim(),
-        artworkTitle: currentOrderArtwork.title, artworkId: currentOrderArtwork.id,
-        artworkPrice: currentOrderArtwork.price, artworkCurrency: currentOrderArtwork.currency || 'UGX',
-        status: 'pending', createdAt: Date.now()
-      };
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
       try {
-        /* Store order under the specific user who owns this artwork */
-        const userId = currentOrderArtwork._source;
-        if (userId && authDb) {
-          await authDb.ref(`user_information/${userId}/orders`).push().set(orderData);
-        }
-        modal.classList.remove('open'); document.body.style.overflow = '';
-        showToast('Order submitted successfully!', 'success');
+        /* Send order via MessageInbox system */
+        const threadKey = await MessageInbox.sendOrder(currentOrderArtwork, {
+          name: name,
+          email: email,
+          phone: phone,
+          message: message || 'I\'m interested in "' + (currentOrderArtwork.title || 'this artwork') + '"'
+        });
+
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+        showToast('Order sent! Check your Messages inbox.', 'success');
         modal.querySelector('#clientOrderForm').reset();
-      } catch (err) { errEl.textContent = "Failed to submit order. Try again."; errEl.classList.remove('hidden'); }
-      btn.disabled = false; btn.textContent = 'Submit Order Request';
+
+        /* Navigate to messages after a short delay */
+        setTimeout(() => { location.hash = 'messages'; }, 800);
+
+      } catch (err) {
+        console.error('Order error:', err);
+        errEl.textContent = 'Failed to submit order. Please try again.';
+        errEl.classList.remove('hidden');
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Submit Order Request';
     });
   }
+
+  /* Pre-fill name & email from logged-in user */
+  const nameInput = modal.querySelector('#orderName');
+  const emailInput = modal.querySelector('#orderEmail');
+  if (auth.currentUser) {
+    if (nameInput) nameInput.value = auth.currentUser.displayName || '';
+    if (emailInput) emailInput.value = auth.currentUser.email || '';
+  }
+  /* Make email read-only since it matches their account */
+  if (emailInput) {
+    emailInput.readOnly = true;
+    emailInput.style.opacity = '0.7';
+  }
+
   const summary = modal.querySelector('#orderArtSummary');
   const images = getArtworkImages(artwork);
-  summary.innerHTML = `<img src="${images[0] || 'https://picsum.photos/seed/order-placeholder/100/100.jpg'}" decoding="async" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius);background:var(--bg-secondary);">
-    <div><h3 style="font-weight:600;font-size:1rem;">${escapeHtml(artwork.title)}</h3><p style="color:var(--muted);font-size:0.9rem;">${artwork.price ? formatPrice(artwork.price, artwork.currency) : 'Price on request'}</p></div>`;
-  modal.classList.add('open'); document.body.style.overflow = 'hidden';
+  summary.innerHTML = '<img src="' + (images[0] || 'https://picsum.photos/seed/order-placeholder/100/100.jpg') + '" decoding="async" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius);background:var(--bg-secondary);">'
+    + '<div><h3 style="font-weight:600;font-size:1rem;">' + escapeHtml(artwork.title) + '</h3>'
+    + '<p style="color:var(--muted);font-size:0.9rem;">' + (artwork.price ? formatPrice(artwork.price, artwork.currency) : 'Price on request') + '</p></div>';
+
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 /* ============================================
@@ -3104,6 +3163,654 @@ const SiteAnalytics = (function () {
   };
 })();
 
+/* ============================================
+   MESSAGE INBOX SYSTEM
+   Threads stored under user's sanitized email
+   Both buyer & artist get their own copy
+   ============================================ */
+const MessageInbox = (function () {
+  const MSG_PATH = 'user_messages';
+  let activeThreadKey = null;
+  let activeThreadRef = null;
+  let unreadListenerAttached = false;
+
+  /* --- Helpers --- */
+  function sanitizeEmail(email) {
+    if (!email) return 'unknown';
+    return email.replace(/\./g, '_dot_').replace(/@/g, '_at_')
+      .replace(/#/g, '_hash_').replace(/\[/g, '_lb_')
+      .replace(/\]/g, '_rb_').replace(/\//g, '_slash_')
+      .replace(/%/g, '_pct_').replace(/\$/g, '_dollar_')
+      .replace(/\{/g, '_lc_').replace(/\}/g, '_rc_')
+      .replace(/\./g, '_dot_');
+  }
+
+  function getUserEmail() {
+    if (!auth || !auth.currentUser) return null;
+    return auth.currentUser.email;
+  }
+
+  function getUserName() {
+    if (!auth || !auth.currentUser) return 'User';
+    return auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User';
+  }
+
+  /* Same thread key for both buyer and artist */
+  function makeThreadKey(email1, email2, artworkId) {
+    const s = [sanitizeEmail(email1 || 'unknown'), sanitizeEmail(email2 || 'unknown')].sort();
+    return s[0] + '___' + s[1] + '___' + (artworkId || 'none');
+  }
+
+  function formatMsgTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diff < 604800000) return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  /* Find artist email from their about data in Firebase */
+   async function findArtistEmail(userId) {
+    if (!userId || !authDb) return null;
+    try {
+      /* First check the about section */
+      const aboutSnap = await authDb.ref('user_information/' + userId + '/about').once('value');
+      const aboutData = aboutSnap.val();
+      if (aboutData && (aboutData.email || aboutData.emailAddress)) {
+        return aboutData.email || aboutData.emailAddress;
+      }
+      /* Fallback: check top-level user profile */
+      const userSnap = await authDb.ref('user_information/' + userId).once('value');
+      const userData = userSnap.val();
+      if (userData && (userData.email || userData.emailAddress)) {
+        return userData.email || userData.emailAddress;
+      }
+      return null;
+    } catch (e) { return null; }
+  }
+
+  /* ======================================================
+     SEND ORDER — Creates message thread for both parties
+     ====================================================== */
+  async function sendOrder(artwork, formData) {
+    const myEmail = getUserEmail();
+    if (!myEmail) throw new Error('Not logged in');
+
+    const myName = getUserName();
+    const artistEmail = await findArtistEmail(artwork._source);
+    const images = getArtworkImages(artwork);
+    const threadKey = makeThreadKey(myEmail, artistEmail, artwork.id);
+    const msgKey = Date.now();
+
+    const firstMsg = {
+      senderEmail: myEmail,
+      senderName: myName,
+      text: formData.message || 'I\'m interested in "' + (artwork.title || 'this artwork') + '"',
+      type: 'order',
+      orderPhone: formData.phone || '',
+      createdAt: msgKey
+    };
+
+    const buyerInfo = {
+      buyerEmail: myEmail,
+      buyerName: myName,
+      otherParticipantEmail: artistEmail || '',
+      otherParticipantName: artwork.artistName || 'Artist',
+      artworkTitle: artwork.title || '',
+      artworkId: artwork.id,
+      artworkImage: images[0] || '',
+      artworkPrice: artwork.price || 0,
+      artworkCurrency: artwork.currency || 'UGX',
+      orderStatus: 'pending',
+      lastMessage: firstMsg.text,
+      lastMessageAt: msgKey,
+      unreadCount: 0
+    };
+
+    const updates = {};
+
+    /* Thread under BUYER's email */
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info'] = buyerInfo;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = firstMsg;
+
+    /* Thread under ARTIST's email (if found) */
+    if (artistEmail) {
+      const artistInfo = Object.assign({}, buyerInfo);
+      artistInfo.otherParticipantEmail = myEmail;
+      artistInfo.otherParticipantName = myName;
+      artistInfo.unreadCount = 1; /* Artist has 1 unread */
+
+      updates[MSG_PATH + '/' + sanitizeEmail(artistEmail) + '/threads/' + threadKey + '/info'] = artistInfo;
+      updates[MSG_PATH + '/' + sanitizeEmail(artistEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = firstMsg;
+    }
+
+    /* Also store in legacy orders path for backward compat */
+    if (artwork._source && authDb) {
+      const orderPushKey = authDb.ref('user_information/' + artwork._source + '/orders').push().key;
+      updates['user_information/' + artwork._source + '/orders/' + orderPushKey] = {
+        clientName: myName,
+        clientEmail: myEmail,
+        clientPhone: formData.phone || '',
+        clientMessage: formData.message || '',
+        artworkTitle: artwork.title,
+        artworkId: artwork.id,
+        artworkPrice: artwork.price,
+        artworkCurrency: artwork.currency || 'UGX',
+        status: 'pending',
+        threadKey: threadKey,
+        createdAt: msgKey
+      };
+    }
+
+    await authDb.ref().update(updates);
+    return threadKey;
+  }
+
+  /* ======================================================
+     MARK THREAD AS READ
+     ====================================================== */
+  async function markThreadRead(threadKey) {
+    const email = getUserEmail();
+    if (!email || !authDb) return;
+    try {
+      await authDb.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads/' + threadKey + '/info/unreadCount').set(0);
+    } catch (e) { /* silent */ }
+    updateMsgBadge();
+  }
+
+  /* ======================================================
+     SEND REPLY — Adds message to both threads
+     ====================================================== */
+  async function sendReply(threadKey, text) {
+    const myEmail = getUserEmail();
+    if (!myEmail || !text.trim() || !authDb) return;
+
+    const myName = getUserName();
+    const msgKey = Date.now();
+
+    const replyMsg = {
+      senderEmail: myEmail,
+      senderName: myName,
+      text: text.trim(),
+      type: 'reply',
+      createdAt: msgKey
+    };
+
+    /* Get thread info to find the other participant */
+    const snap = await authDb.ref(MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info').once('value');
+    const info = snap.val();
+    if (!info) return;
+
+    const otherEmail = info.otherParticipantEmail;
+    const updates = {};
+
+    /* Add to my thread */
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = replyMsg;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessage'] = replyMsg.text;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+
+    /* Add to other participant's thread */
+    if (otherEmail) {
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = replyMsg;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessage'] = replyMsg.text;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+      /* Increment their unread count */
+      const otherUnread = (info._otherUnread || 0) + 1;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/unreadCount'] = otherUnread;
+    }
+
+    await authDb.ref().update(updates);
+  }
+
+  /* ======================================================
+     UPDATE ORDER STATUS (Accept / Reject)
+     ====================================================== */
+  async function updateStatus(threadKey, newStatus) {
+    const myEmail = getUserEmail();
+    if (!myEmail || !authDb) return;
+
+    const snap = await authDb.ref(MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info').once('value');
+    const info = snap.val();
+    if (!info) return;
+
+    const otherEmail = info.otherParticipantEmail;
+    const msgKey = Date.now();
+    const statusLabel = newStatus === 'accepted' ? 'Order Accepted' : 'Order Rejected';
+    const statusMsg = {
+      senderEmail: myEmail,
+      senderName: getUserName(),
+      text: statusLabel,
+      type: 'status_change',
+      newStatus: newStatus,
+      createdAt: msgKey
+    };
+
+    const updates = {};
+
+    /* Update my thread */
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/orderStatus'] = newStatus;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessage'] = statusLabel;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = statusMsg;
+
+    /* Update other participant's thread */
+    if (otherEmail) {
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/orderStatus'] = newStatus;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessage'] = statusLabel;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = statusMsg;
+      /* Increment unread */
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/unreadCount'] = (info._otherUnread || 0) + 1;
+    }
+
+    /* Update legacy order status if artwork source exists */
+    if (info.artworkId) {
+      const artworkIdParts = info.artworkId.split(':');
+      if (artworkIdParts.length === 2) {
+        const userId = artworkIdParts[0];
+        updates['user_information/' + userId + '/orders_status/' + threadKey] = { status: newStatus, updatedAt: msgKey };
+      }
+    }
+
+    await authDb.ref().update(updates);
+  }
+
+  /* ======================================================
+     RENDER INBOX LIST
+     ====================================================== */
+  async function renderInbox() {
+    const email = getUserEmail();
+    const loginPrompt = document.getElementById('messagesLoginPrompt');
+    const inboxView = document.getElementById('messagesInboxView');
+    const emptyEl = document.getElementById('msgEmpty');
+    const listEl = document.getElementById('msgInboxList');
+
+    if (!email) {
+      loginPrompt?.classList.remove('hidden');
+      inboxView?.classList.add('hidden');
+      document.getElementById('msgThreadView')?.classList.add('hidden');
+      lucide.createIcons({ nodes: [loginPrompt] });
+      document.getElementById('msgLoginBtn')?.addEventListener('click', () => {
+        const m = document.getElementById('authModal');
+        if (m) { m.classList.add('open'); document.body.style.overflow = 'hidden'; }
+      });
+      return;
+    }
+
+    loginPrompt?.classList.add('hidden');
+    inboxView?.classList.remove('hidden');
+    document.getElementById('msgThreadView')?.classList.add('hidden');
+    listEl.innerHTML = '';
+    emptyEl?.classList.add('hidden');
+
+    try {
+      const snap = await authDb.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads').once('value');
+      const threads = snap.val();
+
+      if (!threads) {
+        emptyEl?.classList.remove('hidden');
+        lucide.createIcons({ nodes: [emptyEl] });
+        return;
+      }
+
+      const searchQ = (document.getElementById('msgSearchInput')?.value || '').toLowerCase().trim();
+      const statusQ = document.getElementById('msgStatusFilter')?.value || '';
+
+      /* Convert to array and sort by lastMessageAt descending */
+      const threadArr = [];
+      Object.entries(threads).forEach(([key, data]) => {
+        if (!data || !data.info) return;
+        const info = data.info;
+        /* Apply filters */
+        if (statusQ && info.orderStatus !== statusQ) return;
+        if (searchQ) {
+          const haystack = (info.artworkTitle + ' ' + info.otherParticipantName + ' ' + info.lastMessage).toLowerCase();
+          if (!haystack.includes(searchQ)) return;
+        }
+        /* Count actual messages */
+        const msgCount = data.messages ? Object.keys(data.messages).length : 0;
+        threadArr.push({ key, info, msgCount });
+      });
+
+      threadArr.sort((a, b) => (b.info.lastMessageAt || 0) - (a.info.lastMessageAt || 0));
+
+      if (threadArr.length === 0) {
+        emptyEl?.classList.remove('hidden');
+        lucide.createIcons({ nodes: [emptyEl] });
+        return;
+      }
+
+      listEl.innerHTML = threadArr.map(t => {
+        const info = t.info;
+        const isUnread = (info.unreadCount || 0) > 0;
+        const statusCls = info.orderStatus || 'pending';
+        const statusLabel = statusCls.charAt(0).toUpperCase() + statusCls.slice(1);
+        const imgHtml = info.artworkImage
+          ? '<div class="msg-thread-card-img"><img src="' + escapeHtml(info.artworkImage) + '" alt="" decoding="async"></div>'
+          : '';
+
+        return '<div class="msg-thread-card' + (isUnread ? ' msg-unread' : '') + '" data-thread-key="' + escapeHtml(t.key) + '" tabindex="0" role="button">'
+          + imgHtml
+          + '<div class="msg-thread-card-body">'
+          + '<div class="msg-thread-card-top">'
+          + '<span class="msg-thread-card-title">' + escapeHtml(info.artworkTitle || 'Untitled') + '</span>'
+          + '<span class="msg-thread-card-time">' + formatMsgTime(info.lastMessageAt) + '</span>'
+          + '</div>'
+          + '<div class="msg-thread-card-subtitle">' + escapeHtml(info.lastMessage || '') + '</div>'
+          + '<div class="msg-thread-card-meta">'
+          + '<span style="font-size:0.8rem;color:var(--muted);">' + escapeHtml(info.otherParticipantName || 'Unknown') + ' · ' + t.msgCount + ' msg' + (t.msgCount !== 1 ? 's' : '') + '</span>'
+          + (info.artworkPrice ? '<span class="msg-thread-card-price" data-base-price="' + info.artworkPrice + '" data-base-currency="' + (info.artworkCurrency || 'UGX') + '">' + formatPrice(info.artworkPrice, info.artworkCurrency) + '</span>' : '')
+          + '<span class="msg-status-badge ' + statusCls + '">' + statusLabel + '</span>'
+          + (isUnread ? '<span class="msg-unread-dot"></span>' : '')
+          + '</div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+
+      lucide.createIcons({ nodes: [listEl] });
+
+      /* Attach click listeners */
+      listEl.querySelectorAll('.msg-thread-card').forEach(card => {
+        const handler = () => openThread(card.dataset.threadKey);
+        card.addEventListener('click', handler);
+        card.addEventListener('keydown', (e) => { if (e.key === 'Enter') handler(); });
+      });
+
+      /* Update currency formatting on prices */
+      updateAllPrices();
+
+    } catch (err) {
+      console.warn('Failed to load messages:', err);
+      listEl.innerHTML = '<div class="gallery-empty" style="grid-column:1/-1;"><p>Failed to load messages.</p></div>';
+    }
+  }
+
+  /* ======================================================
+     OPEN THREAD DETAIL VIEW
+     ====================================================== */
+  function openThread(threadKey) {
+    activeThreadKey = threadKey;
+    document.getElementById('messagesInboxView')?.classList.add('hidden');
+    document.getElementById('messagesLoginPrompt')?.classList.add('hidden');
+    document.getElementById('msgThreadView')?.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+
+    /* Mark as read */
+    markThreadRead(threadKey);
+
+    /* Load thread data */
+    loadThreadData(threadKey);
+
+    /* Attach listeners */
+    document.getElementById('msgThreadBack')?.addEventListener('click', () => {
+      detachThreadListener();
+      renderInbox();
+    });
+
+    document.getElementById('msgReplyForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('msgReplyInput');
+      const btn = document.getElementById('msgReplyBtn');
+      const text = input?.value?.trim();
+      if (!text) return;
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      try {
+        await sendReply(threadKey, text);
+        input.value = '';
+        showToast('Reply sent', 'success');
+      } catch (err) {
+        showToast('Failed to send reply', 'error');
+      }
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send Reply';
+      lucide.createIcons({ nodes: [btn] });
+    });
+  }
+
+  /* ======================================================
+     LOAD THREAD DATA (real-time listener)
+     ====================================================== */
+  function loadThreadData(threadKey) {
+    const email = getUserEmail();
+    if (!email || !authDb) return;
+
+    detachThreadListener();
+
+    const ref = authDb.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads/' + threadKey);
+    activeThreadRef = ref;
+
+    ref.on('value', (snap) => {
+      const data = snap.val();
+      if (!data) {
+        document.getElementById('msgThreadHeader').innerHTML = '<p style="color:var(--muted);">Thread not found.</p>';
+        document.getElementById('msgThreadMessages').innerHTML = '';
+        return;
+      }
+
+      const info = data.info || {};
+      const messages = data.messages || {};
+
+      renderThreadHeader(info);
+      renderThreadMessages(messages, info);
+    });
+  }
+
+  function detachThreadListener() {
+    if (activeThreadRef) {
+      activeThreadRef.off('value');
+      activeThreadRef = null;
+    }
+  }
+
+  /* ======================================================
+     RENDER THREAD HEADER
+     ====================================================== */
+  function renderThreadHeader(info) {
+    const header = document.getElementById('msgThreadHeader');
+    if (!header) return;
+
+    const statusCls = info.orderStatus || 'pending';
+    const statusLabel = statusCls.charAt(0).toUpperCase() + statusCls.slice(1);
+
+    header.innerHTML = '<div class="msg-thread-header-card">'
+      + (info.artworkImage ? '<div class="msg-thread-header-img"><img src="' + escapeHtml(info.artworkImage) + '" alt="" decoding="async"></div>' : '')
+      + '<div class="msg-thread-header-info">'
+      + '<h2 class="msg-thread-header-title">' + escapeHtml(info.artworkTitle || 'Untitled') + '</h2>'
+      + '<p class="msg-thread-header-artist">by ' + escapeHtml(info.otherParticipantName || 'Artist') + '</p>'
+      + (info.artworkPrice ? '<p class="msg-thread-header-price" data-base-price="' + info.artworkPrice + '" data-base-currency="' + (info.artworkCurrency || 'UGX') + '">' + formatPrice(info.artworkPrice, info.artworkCurrency) + '</p>' : '')
+      + '<p class="msg-thread-header-participant"><i data-lucide="user" style="width:14px;height:14px;"></i> ' + escapeHtml(info.otherParticipantEmail || 'No email') + '</p>'
+      + '<div style="margin-top:0.5rem;"><span class="msg-status-badge ' + statusCls + '">' + statusLabel + '</span></div>'
+      + '</div>'
+      + '</div>';
+
+    lucide.createIcons({ nodes: [header] });
+    updateAllPrices();
+
+    /* Render status actions (only for the artist = non-buyer) */
+    renderStatusActions(info);
+  }
+
+  /* ======================================================
+     RENDER STATUS ACTIONS (Accept/Reject for artist)
+     ====================================================== */
+  function renderStatusActions(info) {
+    const container = document.getElementById('msgStatusActions');
+    if (!container) return;
+
+    const myEmail = getUserEmail();
+    const isBuyer = myEmail === info.buyerEmail;
+
+    /* Only the ARTIST (non-buyer) can accept/reject, and only when pending */
+    if (isBuyer || info.orderStatus !== 'pending') {
+      container.innerHTML = '';
+      return;
+    }
+
+    container.innerHTML = '<button class="btn-accept" id="msgAcceptBtn"><i data-lucide="check" style="width:16px;height:16px;"></i> Accept Order</button>'
+      + '<button class="btn-reject" id="msgRejectBtn"><i data-lucide="x" style="width:16px;height:16px;"></i> Reject Order</button>';
+
+    lucide.createIcons({ nodes: [container] });
+
+    document.getElementById('msgAcceptBtn')?.addEventListener('click', async () => {
+      if (!activeThreadKey) return;
+      const btn = document.getElementById('msgAcceptBtn');
+      btn.disabled = true;
+      btn.textContent = 'Accepting...';
+      try {
+        await updateStatus(activeThreadKey, 'accepted');
+        showToast('Order accepted', 'success');
+      } catch (err) {
+        showToast('Failed to update status', 'error');
+      }
+    });
+
+    document.getElementById('msgRejectBtn')?.addEventListener('click', async () => {
+      if (!activeThreadKey) return;
+      const btn = document.getElementById('msgRejectBtn');
+      btn.disabled = true;
+      btn.textContent = 'Rejecting...';
+      try {
+        await updateStatus(activeThreadKey, 'rejected');
+        showToast('Order rejected', 'info');
+      } catch (err) {
+        showToast('Failed to update status', 'error');
+      }
+    });
+  }
+
+  /* ======================================================
+     RENDER THREAD MESSAGES (bubbles)
+     ====================================================== */
+  function renderThreadMessages(messages, info) {
+    const container = document.getElementById('msgThreadMessages');
+    if (!container) return;
+
+    const myEmail = getUserEmail();
+    const msgArray = Object.entries(messages).map(([key, msg]) => ({ key, ...msg }));
+    msgArray.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+    if (msgArray.length === 0) {
+      container.innerHTML = '<p style="text-align:center;color:var(--muted);padding:2rem;">No messages yet.</p>';
+      return;
+    }
+
+    container.innerHTML = msgArray.map(msg => {
+      /* Status change messages (system messages) */
+      if (msg.type === 'status_change') {
+        const cls = msg.newStatus === 'accepted' ? 'color:#15803d;' : 'color:#dc2626;';
+        return '<div class="msg-bubble-status-change" style="' + cls + '">'
+          + (msg.newStatus === 'accepted' ? '✓ ' : '✗ ') + escapeHtml(msg.text)
+          + '</div>';
+      }
+
+      const isSent = msg.senderEmail === myEmail;
+      let bubbleCls = isSent ? 'msg-bubble-sent' : 'msg-bubble-received';
+      if (msg.type === 'order' && !isSent) bubbleCls = 'msg-bubble-order';
+
+      let html = '<div class="msg-bubble ' + bubbleCls + '">';
+      html += '<div class="msg-bubble-sender">' + escapeHtml(msg.senderName || 'Unknown') + '</div>';
+      html += '<div class="msg-bubble-text">' + escapeHtml(msg.text || '') + '</div>';
+
+      /* Show order details for order-type messages */
+      if (msg.type === 'order' && msg.orderPhone) {
+        html += '<div class="msg-bubble-order-details"><strong>Phone:</strong> ' + escapeHtml(msg.orderPhone) + '</div>';
+      }
+
+      html += '<div class="msg-bubble-time">' + formatMsgTime(msg.createdAt) + '</div>';
+      html += '</div>';
+      return html;
+    }).join('');
+
+    /* Scroll to bottom */
+    requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+  }
+
+  /* ======================================================
+     UNREAD BADGE
+     ====================================================== */
+  function updateMsgBadge() {
+    const badge = document.getElementById('msgBadge');
+    if (!badge) return;
+
+    const email = getUserEmail();
+    if (!email) {
+      badge.textContent = '0';
+      badge.classList.remove('show');
+      return;
+    }
+
+    if (authDb) {
+      authDb.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads').once('value').then(snap => {
+        const threads = snap.val();
+        let total = 0;
+        if (threads) {
+          Object.values(threads).forEach(t => {
+            if (t && t.info && t.info.unreadCount) total += t.info.unreadCount;
+          });
+        }
+        badge.textContent = total > 99 ? '99+' : total;
+        badge.classList.toggle('show', total > 0);
+      }).catch(() => {
+        badge.textContent = '0';
+        badge.classList.remove('show');
+      });
+    }
+  }
+
+  /* Setup real-time unread listener */
+  function attachUnreadListener() {
+    if (unreadListenerAttached) return;
+    const email = getUserEmail();
+    if (!email || !authDb) return;
+
+    authDb.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads').on('value', () => {
+      updateMsgBadge();
+    });
+    unreadListenerAttached = true;
+  }
+
+  /* Reset listener on logout */
+  function detachUnreadListener() {
+    if (!authDb) return;
+    const email = getUserEmail();
+    if (!email) return;
+    authDb.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads').off('value');
+    unreadListenerAttached = false;
+    const badge = document.getElementById('msgBadge');
+    if (badge) {
+      badge.textContent = '0';
+      badge.classList.remove('show');
+    }
+  }
+
+  /* ======================================================
+     INBOX FILTER LISTENERS
+     ====================================================== */
+  function initFilterListeners() {
+    document.getElementById('msgSearchInput')?.addEventListener('input', debounce(renderInbox, 300));
+    document.getElementById('msgStatusFilter')?.addEventListener('change', renderInbox);
+  }
+
+  /* ======================================================
+     PUBLIC API
+     ====================================================== */
+  return {
+    sendOrder: sendOrder,
+    renderInbox: renderInbox,
+    updateMsgBadge: updateMsgBadge,
+    attachUnreadListener: attachUnreadListener,
+    detachUnreadListener: detachUnreadListener,
+    initFilterListeners: initFilterListeners,
+    detachThreadListener: detachThreadListener
+  };
+})();
 
 /* --- Offline/Online guard (unchanged) --- */
 !function () {
@@ -3143,6 +3850,11 @@ async function init() {
   initViewingRoomListeners();
   initPriceDatabaseListeners();
   SiteAnalytics.init(authDb);
+    MessageInbox.initFilterListeners();
+  if (auth && auth.currentUser) {
+    MessageInbox.attachUnreadListener();
+    MessageInbox.updateMsgBadge();
+  }
   
   /* Step 1: Load artist about/bio data from user_information */
   await loadArtistAboutData();
