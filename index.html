@@ -47,19 +47,7 @@
         <a href="#artist" class="nav-link" data-page="artist">About</a>
       </div>
              
-      <div class="nav-actions">
-        <div class="nav-dropdown" id="currDropdown">
-          <button class="nav-icon-btn nav-curr-btn" title="Change Currency" aria-label="Change Currency">
-            <span id="currSymbol">UGX</span>
-          </button>
-          <div class="dropdown-menu">
-            <button class="dropdown-item active" data-curr="UGX">UGX</button>
-            
-            <button class="dropdown-item" data-curr="USD">USD</button>
-            <button class="dropdown-item" data-curr="EUR">EUR</button>
-            <button class="dropdown-item" data-curr="GBP">GBP</button>
-          </div>
-        </div>
+     
         
          <button class="nav-icon-btn" id="msgNavBtn" title="Messages" aria-label="View messages">
   <i data-lucide="mail" style="width:20px;height:20px;"></i>
@@ -75,7 +63,22 @@
           <i data-lucide="sun" class="icon-sun"></i>
           <i data-lucide="moon" class="icon-moon"></i>
         </button>
-
+        
+         <div class="nav-actions">
+   <div class="nav-dropdown" id="currDropdown">
+     <button class="nav-icon-btn nav-curr-btn" title="Change Currency" aria-label="Change Currency">
+       <span id="currSymbol">UGX</span>
+     </button>
+     
+     <div class="dropdown-menu">
+       <button class="dropdown-item active" data-curr="UGX">UGX</button>
+       
+       <button class="dropdown-item" data-curr="USD">USD</button>
+       <button class="dropdown-item" data-curr="EUR">EUR</button>
+       <button class="dropdown-item" data-curr="GBP">GBP</button>
+     </div>
+   </div>
+   
         <button class="nav-icon-btn" id="openAuthModalBtn" title="Account" aria-label="Account">
           <i data-lucide="user" style="width:20px;height:20px;"></i>
         </button>
