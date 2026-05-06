@@ -9,10 +9,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Afro Gallero Artsy— Where African Creativity Meets Modern Expression Redefining African Art for the World and Showcasing Modern African Masterpieces</title>
   
-   <!-- Favicon -->
- <link rel="icon" type="image/webp" sizes="16x16" href="https://ik.imagekit.io/s95tumxuk/IMG_1356.jpeg?updatedAt=1777123021199">
+  <link rel="icon" type="image/webp" sizes="16x16" href="https://ik.imagekit.io/s95tumxuk/IMG_1356.jpeg?updatedAt=1777123021199">
   <link rel="icon" type="image/webp" sizes="32x32" href="https://ik.imagekit.io/s95tumxuk/IMG_1356.jpeg?updatedAt=1777123021199">
   <link rel="apple-touch-icon" sizes="180x180" href="https://ik.imagekit.io/s95tumxuk/IMG_1359.jpeg?updatedAt=1777125891205">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -54,11 +54,17 @@
           </button>
           <div class="dropdown-menu">
             <button class="dropdown-item active" data-curr="UGX">UGX</button>
+            
             <button class="dropdown-item" data-curr="USD">USD</button>
             <button class="dropdown-item" data-curr="EUR">EUR</button>
             <button class="dropdown-item" data-curr="GBP">GBP</button>
           </div>
         </div>
+        
+         <button class="nav-icon-btn" id="msgNavBtn" title="Messages" aria-label="View messages">
+  <i data-lucide="mail" style="width:20px;height:20px;"></i>
+  <span class="fav-badge" id="msgBadge">0</span>
+</button>
 
         <button class="nav-icon-btn" id="favNavBtn" title="Favorites" aria-label="View favorites">
           <i data-lucide="heart" class="icon-heart"></i>
@@ -204,6 +210,8 @@
               <option value="Digital Art">Digital Art</option>
               <option value="Mixed Media">Mixed Media</option>
               <option value="Photography">Photography</option>
+              <option value="Drawing">Drawing</option>
+              <option value="inkart">Inkart</option>
             </select>
           </div>
         </div>
@@ -260,7 +268,9 @@
               <option value="Digital Art">Digital Art</option>
               <option value="Photography">Photography</option>
               <option value="Mixed Media">Mixed Media</option>
-              <option value="Sculptures">Sculptures</option>
+              <option value="Sculptures">Sculpture8</option>
+              <option value="Drawing">Drawing</option>
+              <option value="inkart">Inkart</option>
             </select>
           </div>
         </div>
@@ -295,6 +305,8 @@
             <option value="Photography">Photography</option>
             <option value="Mixed Media">Mixed Media</option>
             <option value="Sculptures">Sculpture</option>
+            <option value="Drawing">Drawing</option>
+<option value="inkart">Inkart</option>
           </select>
         </div>
         <div class="filter-select-wrap">
@@ -419,7 +431,67 @@
       </div>
     </div>
   </section>
-
+  
+  <!-- ========== MESSAGES INBOX PAGE ========== -->
+  <section id="page-messages" class="page">
+    <div class="page-header">
+      <span class="section-tag reveal">Inbox</span>
+      <h1 class="page-title reveal" style="transition-delay:0.1s">Messages</h1>
+    </div>
+    
+    <!-- Login Prompt (shown when not signed in) -->
+    <div id="messagesLoginPrompt" class="hidden" style="text-align:center;padding:4rem 1.5rem;">
+      <i data-lucide="lock" style="width:56px;height:56px;color:var(--muted);margin-bottom:1rem;"></i>
+      <p style="font-size:1.15rem;color:var(--muted);margin-bottom:0.5rem;">Please sign in to view your messages</p>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:1.5rem;">Orders and replies appear in your inbox</p>
+      <button class="btn btn-primary" id="msgLoginBtn">Sign In</button>
+    </div>
+    
+    <!-- Inbox List View -->
+    <div id="messagesInboxView" class="hidden">
+      <div class="msg-toolbar reveal" style="transition-delay:0.2s">
+        <div class="search-bar" style="max-width:360px;flex:1;">
+          <i data-lucide="search" style="width:18px;height:18px;color:var(--muted);"></i>
+          <input type="text" id="msgSearchInput" placeholder="Search by artwork or name..." aria-label="Search messages">
+        </div>
+        <div class="filter-select-wrap">
+          <select id="msgStatusFilter" aria-label="Filter by status">
+            <option value="">All Messages</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      </div>
+      <div id="msgInboxList"></div>
+      <div class="gallery-empty hidden" id="msgEmpty">
+        <i data-lucide="inbox" style="width:48px;height:48px;color:var(--muted);"></i>
+        <p>No messages yet.</p>
+        <p style="font-size:0.85rem;color:var(--muted);margin-top:0.25rem;">Orders you place will appear here</p>
+      </div>
+    </div>
+    
+    <!-- Thread Detail View (hidden by default) -->
+    <div id="msgThreadView" class="hidden">
+      <div class="container" style="padding:1.5rem;max-width:800px;margin:0 auto;">
+        <button class="btn btn-ghost" id="msgThreadBack" style="margin-bottom:1.25rem;">
+          <i data-lucide="arrow-left" style="width:18px;height:18px;"></i> Back to Inbox
+        </button>
+        <div id="msgThreadHeader"></div>
+        <div id="msgThreadMessages" class="msg-thread-messages"></div>
+        <div id="msgThreadActions">
+          <div id="msgStatusActions" class="msg-status-actions"></div>
+          <form id="msgReplyForm" class="msg-reply-form">
+            <textarea id="msgReplyInput" rows="3" placeholder="Type your reply..." required></textarea>
+            <button type="submit" class="btn btn-primary" id="msgReplyBtn">
+              <i data-lucide="send" style="width:16px;height:16px;"></i> Send Reply
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+  
   <!-- ========== FAVORITES PAGE ========== -->
   <section id="page-favorites" class="page">
     <div class="page-header">
