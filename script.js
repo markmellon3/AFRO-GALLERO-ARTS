@@ -721,7 +721,7 @@ function openPortfolioRegistration() {
           <p style="margin:0;font-size:0.85rem;opacity:0.8;">Get started for just</p>
           <p style="margin:4px 0 0 0;font-size:2rem;font-weight:800;color:var(--primary);">${portfolioPrice}</p>
         </div>
-        <a href="portfolio.html" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;display:block;font-weight:600;padding:12px;">
+        <a href="/portfolio.html" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;display:block;font-weight:600;padding:12px;">
           <i data-lucide="user-plus" style="width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Register Now
         </a>
       </div>`;
