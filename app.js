@@ -933,6 +933,7 @@ auth.onAuthStateChanged(async function (user) {
     state.userMessagesRef = db.ref('user_information/' + user.uid + '/messages');
     state.userAboutRef = db.ref('user_information/' + user.uid + '/about');
     state.userAnalyticsRef = db.ref('user_information/' + user.uid + '/analytics');
+   state.userEventsRef = db.ref('user_information/' + user.uid + '/events');
 
     try {
       var snap = await state.userInfoRef.once('value');
@@ -971,6 +972,7 @@ auth.onAuthStateChanged(async function (user) {
     state.userMessagesRef = null;
     state.userAboutRef = null;
     state.userAnalyticsRef = null;
+    state.userEventsRef = null;
     showAuth();
   }
 });
@@ -996,6 +998,10 @@ function cleanupListeners() {
     state.userAnalyticsRef.off('value');
     state.listenersAttached.analytics = false;
   }
+  if (state.userEventsRef) {
+  state.userEventsRef.off('value');
+  state.listenersAttached.events = false;
+}
   /* Detach thread listener on cleanup */
   ThreadSystem.detachThreadListener();
   state.activeOrderThreadKey = null;
@@ -1083,6 +1089,7 @@ function attachAllListeners() {
   attachOrdersListener();
   attachUserAnalyticsListener();
   initAboutSection();
+  window.attachEventsListener();
 }
 
 /* ==============================================
@@ -2863,6 +2870,46 @@ function closeOrderDetail() {
 /* ==============================================
    PUBLIC APIs
    ============================================== */
+   window.getEvents = function(ownerId) {
+  if (!ownerId) return Promise.resolve([]);
+  return db.ref('user_information/' + ownerId + '/events').once('value').then(function(snap) {
+    var d = snap.val();
+    if (!d) return [];
+    return Object.entries(d).map(function(e) { return Object.assign({ id: e[0] }, e[1]); })
+      .sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+  }).catch(function() { return []; });
+};
+
+window.submitEventComment = function(ownerId, eventId, commentData) {
+  if (!ownerId || !eventId) return Promise.resolve({ success: false, error: 'Missing parameters' });
+  if (!auth.currentUser) return Promise.resolve({ success: false, error: 'Must be signed in' });
+  
+  var name = 'Anonymous';
+  if (state.userProfile) {
+    name = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
+  }
+  if (!name) name = auth.currentUser.displayName || auth.currentUser.email.split('@')[0];
+  
+  var data = {
+    text: commentData.text || '',
+    authorName: commentData.authorName || name,
+    authorEmail: auth.currentUser.email,
+    authorUid: auth.currentUser.uid,
+    createdAt: Date.now()
+  };
+  
+  return db.ref('user_information/' + ownerId + '/events/' + eventId + '/comments').push().set(data)
+    .then(function() { return { success: true }; })
+    .catch(function(e) { return { success: false, error: e.message }; });
+};
+
+window.deleteEventComment = function(ownerId, eventId, commentId) {
+  if (!ownerId || !eventId || !commentId) return Promise.resolve({ success: false });
+  return db.ref('user_information/' + ownerId + '/events/' + eventId + '/comments/' + commentId).remove()
+    .then(function() { return { success: true }; })
+    .catch(function(e) { return { success: false, error: e.message }; });
+};
+
 window.trackPageView = function (ownerId) {
   if (!ownerId) return Promise.resolve({ success: false });
   var today = new Date().toISOString().split('T')[0];
@@ -3235,6 +3282,635 @@ function closeDeleteOrderModal() {
   }
   state.orderDeleteId = null;
 }
+/* ==============================================
+   EVENTS SYSTEM
+   ============================================== */
+(function() {
+  // Extend state
+  state.events = [];
+  state.eventDetailId = null;
+  state.eventCommentsRef = null;
+  state.eventCommentsOff = null;
+
+  // Extend listeners attached
+  state.listenersAttached.events = false;
+
+  /* ---------- Date Helpers ---------- */
+  function formatEventDate(dateStr) {
+    if (!dateStr) return { full: 'TBD', day: '?', month: 'TBD', year: '', weekday: '' };
+    var d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return { full: dateStr, day: '?', month: 'TBD', year: '', weekday: '' };
+    return {
+      full: d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      day: d.getDate(),
+      month: d.toLocaleDateString('en-US', { month: 'short' }),
+      year: d.getFullYear(),
+      weekday: d.toLocaleDateString('en-US', { weekday: 'short' })
+    };
+  }
+
+  function getEventCommentCount(ev) {
+    if (!ev || !ev.comments) return 0;
+    return Object.keys(ev.comments).length;
+  }
+
+  /* ---------- Render Events Grid ---------- */
+  function renderEventsGrid() {
+    var grid = document.getElementById('eventsGrid');
+    var empty = document.getElementById('eventsEmpty');
+    if (!grid) return;
+
+    if (!state.events || state.events.length === 0) {
+      grid.innerHTML = '';
+      if (empty) empty.style.display = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    var fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='220'%3E%3Crect fill='%23e9ecef' width='320' height='220'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23adb5bd' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
+
+    grid.innerHTML = state.events.map(function(ev) {
+      var img = ev.image || '';
+      var fd = formatEventDate(ev.eventDate);
+      var commentCount = getEventCommentCount(ev);
+      var desc = (ev.description || '').substring(0, 120);
+      if ((ev.description || '').length > 120) desc += '...';
+
+      return '<div class="ev-card" data-eid="' + ev.id + '">' +
+        '<div class="ev-card-img-wrap">' +
+          '<img class="ev-card-img" src="' + escapeHtml(img || fallback) + '" alt="' + escapeHtml(ev.title || '') + '" loading="lazy" onerror="this.src=\'' + fallback + '\'">' +
+          '<div class="ev-card-date-badge">' +
+            '<span class="badge-month">' + escapeHtml(fd.month) + '</span>' +
+            '<span class="badge-day">' + fd.day + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ev-card-body">' +
+          '<h3 class="ev-card-title">' + escapeHtml(ev.title || 'Untitled Event') + '</h3>' +
+          '<div class="ev-card-info">' +
+            '<span class="ev-card-info-item">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
+              escapeHtml(fd.full) +
+            '</span>' +
+            (ev.eventTime ? '<span class="ev-card-info-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + escapeHtml(ev.eventTime) + '</span>' : '') +
+            (ev.location ? '<span class="ev-card-info-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' + escapeHtml(ev.location) + '</span>' : '') +
+          '</div>' +
+          (ev.description ? '<p class="ev-card-desc">' + escapeHtml(desc) + '</p>' : '') +
+          '<div class="ev-card-footer">' +
+            '<span class="ev-card-comments-badge">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
+              commentCount + ' comment' + (commentCount !== 1 ? 's' : '') +
+            '</span>' +
+            '<span style="font-size:0.75rem;color:var(--accent);font-weight:600;">View Details &rarr;</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  /* ---------- Open Event Detail ---------- */
+  function openEventDetail(id) {
+    var ev = state.events.find(function(e) { return e.id === id; });
+    if (!ev) return;
+    state.eventDetailId = id;
+
+    var modal = document.getElementById('eventDetailModal');
+    if (!modal) return;
+
+    var fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='360'%3E%3Crect fill='%23e9ecef' width='600' height='360'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23adb5bd' font-size='16'%3ENo Image%3C/text%3E%3C/svg%3E";
+    var img = ev.image || fallback;
+
+    var evImage = document.getElementById('evImage');
+    if (evImage) { evImage.src = img; evImage.onerror = function() { this.src = fallback; }; }
+
+    var fd = formatEventDate(ev.eventDate);
+
+    var badgeMonth = document.getElementById('evBadgeMonth');
+    var badgeDay = document.getElementById('evBadgeDay');
+    if (badgeMonth) badgeMonth.textContent = fd.month;
+    if (badgeDay) badgeDay.textContent = fd.day;
+
+    var evTitle = document.getElementById('evTitle');
+    if (evTitle) evTitle.textContent = ev.title || 'Untitled Event';
+
+    var evDateText = document.getElementById('evDateText');
+    if (evDateText) evDateText.querySelector('span').textContent = fd.full || 'TBD';
+
+    var evTimeText = document.getElementById('evTimeText');
+    if (evTimeText) {
+      evTimeText.style.display = ev.eventTime ? 'flex' : 'none';
+      evTimeText.querySelector('span').textContent = ev.eventTime || '';
+    }
+
+    var evYearText = document.getElementById('evYearText');
+    if (evYearText) {
+      evYearText.style.display = fd.year ? 'flex' : 'none';
+      evYearText.querySelector('span').textContent = fd.year ? 'Year ' + fd.year : '';
+    }
+
+    var evLocation = document.getElementById('evLocation');
+    if (evLocation) {
+      evLocation.style.display = ev.location ? 'flex' : 'none';
+      evLocation.querySelector('span').textContent = ev.location || '';
+    }
+
+    var evDescription = document.getElementById('evDescription');
+    if (evDescription) evDescription.textContent = ev.description || '';
+
+    /* Comments auth check */
+    updateCommentAuthUI();
+    renderEventComments(ev.comments || {});
+
+    /* Attach real-time comments listener */
+    attachCommentsListener(id);
+
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  /* ---------- Close Event Detail ---------- */
+  function closeEventDetail() {
+    var modal = document.getElementById('eventDetailModal');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+    state.eventDetailId = null;
+    detachCommentsListener();
+  }
+
+  /* ---------- Comment Auth UI ---------- */
+  function updateCommentAuthUI() {
+    var authPrompt = document.getElementById('evCommentAuthPrompt');
+    var formWrap = document.getElementById('evCommentFormWrap');
+    var avatarEl = document.getElementById('evCommentAvatar');
+
+    if (auth.currentUser) {
+      if (authPrompt) authPrompt.style.display = 'none';
+      if (formWrap) formWrap.style.display = '';
+      if (avatarEl) {
+        var name = 'You';
+        if (state.userProfile) {
+          name = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim() || auth.currentUser.email.split('@')[0];
+        } else {
+          name = auth.currentUser.displayName || auth.currentUser.email.split('@')[0];
+        }
+        avatarEl.textContent = getInitials(name);
+      }
+    } else {
+      if (authPrompt) authPrompt.style.display = '';
+      if (formWrap) formWrap.style.display = 'none';
+    }
+  }
+
+  /* ---------- Render Comments ---------- */
+  function renderEventComments(commentsObj) {
+    var list = document.getElementById('evCommentsList');
+    var countEl = document.getElementById('evCommentCount');
+    if (!list) return;
+
+    var comments = commentsObj ? Object.entries(commentsObj).map(function(e) {
+      return Object.assign({ _key: e[0] }, e[1]);
+    }) : [];
+
+    comments.sort(function(a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+
+    if (countEl) countEl.textContent = comments.length;
+
+    if (comments.length === 0) {
+      list.innerHTML = '<div class="ev-comments-empty">No comments yet. Be the first to share your thoughts!</div>';
+      return;
+    }
+
+    var myEmail = auth.currentUser ? auth.currentUser.email : '';
+
+    list.innerHTML = comments.map(function(c) {
+      var isMine = c.authorEmail && myEmail && c.authorEmail === myEmail;
+      var initials = getInitials(c.authorName || '?');
+
+      return '<div class="ev-comment-item">' +
+        '<div class="ev-comment-avatar">' + escapeHtml(initials) + '</div>' +
+        '<div class="ev-comment-body">' +
+          '<div class="ev-comment-name">' + escapeHtml(c.authorName || 'Unknown') + '</div>' +
+          '<div class="ev-comment-text">' + escapeHtml(c.text || '') + '</div>' +
+          '<div class="ev-comment-time">' + formatRelativeDate(c.createdAt) + '</div>' +
+        '</div>' +
+        (isMine ? '<button class="ev-comment-delete" data-cid="' + c._key + '" title="Delete comment"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  /* ---------- Attach Comments Listener ---------- */
+  function attachCommentsListener(eventId) {
+    detachCommentsListener();
+    if (!auth.currentUser || !state.userEventsRef) return;
+
+    state.eventCommentsRef = state.userEventsRef.child(eventId + '/comments');
+    state.eventCommentsOff = state.eventCommentsRef.on('value', function(snap) {
+      var d = snap.val();
+      renderEventComments(d || {});
+
+      /* Also update local event object */
+      var ev = state.events.find(function(e) { return e.id === eventId; });
+      if (ev) ev.comments = d || {};
+    });
+  }
+
+  function detachCommentsListener() {
+    if (state.eventCommentsRef && state.eventCommentsOff) {
+      state.eventCommentsRef.off('value', state.eventCommentsOff);
+    }
+    state.eventCommentsRef = null;
+    state.eventCommentsOff = null;
+  }
+
+  /* ---------- Submit Comment ---------- */
+  async function submitEventComment() {
+    if (!auth.currentUser) {
+      showToast('Please sign in to comment', 'info');
+      return;
+    }
+    if (!state.eventDetailId || !state.userEventsRef) return;
+
+    var input = document.getElementById('evCommentInput');
+    var errorEl = document.getElementById('evCommentError');
+    var btn = document.getElementById('evCommentSendBtn');
+    if (!input) return;
+
+    var text = input.value.trim();
+    if (!text) {
+      if (errorEl) { errorEl.textContent = 'Please write something.'; errorEl.style.display = ''; }
+      return;
+    }
+    if (errorEl) errorEl.style.display = 'none';
+
+    var authorName = 'Anonymous';
+    if (state.userProfile) {
+      authorName = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
+    }
+    if (!authorName) authorName = auth.currentUser.displayName || auth.currentUser.email.split('@')[0];
+
+    btn.disabled = true;
+
+    var commentData = {
+      text: text,
+      authorName: authorName,
+      authorEmail: auth.currentUser.email,
+      authorUid: auth.currentUser.uid,
+      createdAt: Date.now()
+    };
+
+    try {
+      await state.userEventsRef.child(state.eventDetailId + '/comments').push().set(commentData);
+      input.value = '';
+      input.focus();
+    } catch (err) {
+      console.error('Comment error:', err);
+      if (errorEl) { errorEl.textContent = 'Failed to post comment.'; errorEl.style.display = ''; }
+      showToast('Failed to post comment', 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  /* ---------- Delete Comment ---------- */
+  async function deleteEventComment(commentId) {
+    if (!state.eventDetailId || !state.userEventsRef) return;
+
+    try {
+      await state.userEventsRef.child(state.eventDetailId + '/comments/' + commentId).remove();
+      showToast('Comment deleted', 'info');
+    } catch (err) {
+      console.error('Delete comment error:', err);
+      showToast('Failed to delete comment', 'error');
+    }
+  }
+
+  /* ---------- Attach Events Listener ---------- */
+  function attachEventsListener() {
+    if (state.listenersAttached.events || !state.userEventsRef) return;
+    state.listenersAttached.events = true;
+
+    state.userEventsRef.on('value', function(snap) {
+      var d = snap.val();
+      state.events = d ? Object.entries(d).map(function(e) { return Object.assign({ id: e[0] }, e[1]); }) : [];
+      state.events.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      renderEventsGrid();
+      renderAdminEventsList();
+    }, function(err) {
+      console.error('Events listener error:', err);
+    });
+  }
+
+  /* ---------- Render Admin Events List ---------- */
+  function renderAdminEventsList() {
+    var list = document.getElementById('adminEventsList');
+    if (!list) return;
+
+    if (!state.events || state.events.length === 0) {
+      list.innerHTML = '';
+      return;
+    }
+
+    var fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect fill='%23e9ecef' width='50' height='50'/%3E%3C/svg%3E";
+
+    list.innerHTML = '<p style="font-size:.82rem;color:var(--muted);margin-bottom:.5rem;">Published events (' + state.events.length + ')</p>' +
+      state.events.map(function(ev) {
+        var fd = formatEventDate(ev.eventDate);
+        return '<div class="admin-ev-item">' +
+          '<img src="' + escapeHtml(ev.image || fallback) + '" alt="" onerror="this.src=\'' + fallback + '\'">' +
+          '<div class="admin-ev-item-info">' +
+            '<h4>' + escapeHtml(ev.title || 'Untitled') + '</h4>' +
+            '<span>' + escapeHtml(fd.full) + (ev.eventTime ? ' at ' + escapeHtml(ev.eventTime) : '') + '</span>' +
+          '</div>' +
+          '<button class="admin-ev-del-btn" data-eid="' + ev.id + '" title="Delete event">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+          '</button>' +
+        '</div>';
+      }).join('');
+  }
+
+  /* ---------- Upload Event Image ---------- */
+  async function uploadEventImage(file) {
+    if (!file || !file.type.startsWith('image/')) return null;
+    if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB', 'error'); return null; }
+
+    showToast('Uploading image...', 'info');
+    var fd = new FormData();
+    fd.append('image', file);
+    fd.append('key', IMGBB_KEY);
+
+    try {
+      var res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      var data = await res.json();
+      if (!data.success) throw new Error('ImgBB error');
+      return data.data.display_url;
+    } catch (err) {
+      console.error('Event image upload error:', err);
+      showToast('Image upload failed', 'error');
+      return null;
+    }
+  }
+
+  /* ---------- Create Event ---------- */
+  async function createEvent(formData) {
+    if (!state.userEventsRef) {
+      showToast('Not connected to database', 'error');
+      return false;
+    }
+
+    var imageUrl = formData.imageUrl || '';
+
+    /* If file was selected, upload it */
+    if (formData.file && !imageUrl) {
+      imageUrl = await uploadEventImage(formData.file);
+      if (!imageUrl) return false;
+    }
+
+    if (!imageUrl) {
+      showToast('Please provide an event image', 'error');
+      return false;
+    }
+
+    var eventData = {
+      title: formData.title,
+      description: formData.description,
+      image: imageUrl,
+      eventDate: formData.eventDate,
+      eventTime: formData.eventTime || '',
+      location: formData.location || '',
+      createdAt: Date.now()
+    };
+
+    try {
+      await state.userEventsRef.push().set(eventData);
+      showToast('Event published!', 'success');
+      return true;
+    } catch (err) {
+      console.error('Create event error:', err);
+      showToast('Failed to publish event', 'error');
+      return false;
+    }
+  }
+
+  /* ---------- Delete Event ---------- */
+  async function deleteEvent(eventId) {
+    if (!state.userEventsRef) return;
+    try {
+      await state.userEventsRef.child(eventId).remove();
+      showToast('Event deleted', 'success');
+      if (state.eventDetailId === eventId) closeEventDetail();
+    } catch (err) {
+      console.error('Delete event error:', err);
+      showToast('Failed to delete event', 'error');
+    }
+  }
+
+  /* ---------- Expose to global scope ---------- */
+  window.openEventDetail = openEventDetail;
+  window.closeEventDetail = closeEventDetail;
+  window.submitEventComment = submitEventComment;
+  window.deleteEventComment = deleteEventComment;
+  window.deleteEvent = deleteEvent;
+  window.createEvent = createEvent;
+  window.attachEventsListener = attachEventsListener;
+  window.renderAdminEventsList = renderAdminEventsList;
+
+})();
+
+/* ==============================================
+   EVENTS DOM EVENT HANDLERS
+   ============================================== */
+document.addEventListener('DOMContentLoaded', function() {
+
+  /* --- Events Grid Click --- */
+  var eventsGrid = document.getElementById('eventsGrid');
+  if (eventsGrid) {
+    eventsGrid.addEventListener('click', function(e) {
+      var card = e.target.closest('.ev-card');
+      if (card) {
+        var eid = card.dataset.eid;
+        if (eid) window.openEventDetail(eid);
+      }
+    });
+  }
+
+  /* --- Event Detail Modal Close --- */
+  var evClose = document.getElementById('evClose');
+  if (evClose) evClose.addEventListener('click', window.closeEventDetail);
+
+  var eventDetailModal = document.getElementById('eventDetailModal');
+  if (eventDetailModal) {
+    eventDetailModal.addEventListener('click', function(e) {
+      if (e.target === this) window.closeEventDetail();
+    });
+  }
+
+  /* --- Comment Send --- */
+  var evCommentSendBtn = document.getElementById('evCommentSendBtn');
+  if (evCommentSendBtn) {
+    evCommentSendBtn.addEventListener('click', window.submitEventComment);
+  }
+
+  var evCommentInput = document.getElementById('evCommentInput');
+  if (evCommentInput) {
+    evCommentInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        var btn = document.getElementById('evCommentSendBtn');
+        if (btn && !btn.disabled) btn.click();
+      }
+    });
+  }
+
+  /* --- Comment Delete (delegated) --- */
+  var evCommentsList = document.getElementById('evCommentsList');
+  if (evCommentsList) {
+    evCommentsList.addEventListener('click', function(e) {
+      var delBtn = e.target.closest('.ev-comment-delete');
+      if (delBtn) {
+        e.stopPropagation();
+        var cid = delBtn.dataset.cid;
+        if (cid) window.deleteEventComment(cid);
+      }
+    });
+  }
+
+  /* --- Auth state changes: update comment UI if modal is open --- */
+  auth.onAuthStateChanged(function() {
+    if (state.eventDetailId) {
+      window.updateCommentAuthUI && window.updateCommentAuthUI();
+    }
+  });
+
+  /* ==============================================
+     ADMIN: EVENT CREATION FORM
+     ============================================== */
+  var eventCreateForm = document.getElementById('eventCreateForm');
+  if (eventCreateForm) {
+    var evImagePreviewWrap = document.getElementById('evImagePreviewWrap');
+    var evImagePreview = document.getElementById('evImagePreview');
+    var evCreateImage = document.getElementById('evCreateImage');
+    var evCreateImageUrl = document.getElementById('evCreateImageUrl');
+    var evImageRemoveBtn = document.getElementById('evImageRemoveBtn');
+    var selectedFile = null;
+
+    /* File input change */
+    if (evCreateImage) {
+      evCreateImage.addEventListener('change', function() {
+        var file = this.files[0];
+        if (!file) return;
+        selectedFile = file;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          if (evImagePreview) evImagePreview.src = e.target.result;
+          if (evImagePreviewWrap) evImagePreviewWrap.style.display = '';
+        };
+        reader.readAsDataURL(file);
+        if (evCreateImageUrl) evCreateImageUrl.value = '';
+      });
+    }
+
+    /* URL input change */
+    if (evCreateImageUrl) {
+      evCreateImageUrl.addEventListener('input', function() {
+        var url = this.value.trim();
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+          if (evImagePreview) evImagePreview.src = url;
+          if (evImagePreviewWrap) evImagePreviewWrap.style.display = '';
+          selectedFile = null;
+          if (evCreateImage) evCreateImage.value = '';
+        } else if (!url) {
+          if (evImagePreviewWrap) evImagePreviewWrap.style.display = 'none';
+        }
+      });
+    }
+
+    /* Remove image */
+    if (evImageRemoveBtn) {
+      evImageRemoveBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        selectedFile = null;
+        if (evImagePreviewWrap) evImagePreviewWrap.style.display = 'none';
+        if (evImagePreview) evImagePreview.src = '';
+        if (evCreateImage) evCreateImage.value = '';
+        if (evCreateImageUrl) evCreateImageUrl.value = '';
+      });
+    }
+
+    /* Form submit */
+    eventCreateForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var errorEl = document.getElementById('eventCreateError');
+      var btn = document.getElementById('evCreateBtn');
+      if (errorEl) errorEl.style.display = 'none';
+
+      var title = document.getElementById('evCreateTitle').value.trim();
+      var eventDate = document.getElementById('evCreateDate').value;
+      var eventTime = document.getElementById('evCreateTime').value.trim();
+      var location = document.getElementById('evCreateLocation').value.trim();
+      var description = document.getElementById('evCreateDesc').value.trim();
+      var imageUrl = document.getElementById('evCreateImageUrl').value.trim();
+
+      var errors = [];
+      if (!title) errors.push('Event title is required.');
+      if (!eventDate) errors.push('Event date is required.');
+      if (!description) errors.push('Description is required.');
+      if (!selectedFile && !imageUrl) errors.push('Please select or paste an event image.');
+
+      if (errors.length > 0) {
+        if (errorEl) { errorEl.textContent = errors[0]; errorEl.style.display = ''; }
+        return;
+      }
+
+      setLoading(btn, true);
+
+      try {
+        var success = await window.createEvent({
+          title: title,
+          eventDate: eventDate,
+          eventTime: eventTime,
+          location: location,
+          description: description,
+          imageUrl: imageUrl,
+          file: selectedFile
+        });
+
+        if (success) {
+          eventCreateForm.reset();
+          selectedFile = null;
+          if (evImagePreviewWrap) evImagePreviewWrap.style.display = 'none';
+          if (evImagePreview) evImagePreview.src = '';
+        }
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+  }
+
+  /* --- Admin Event Delete --- */
+  var adminEventsList = document.getElementById('adminEventsList');
+  if (adminEventsList) {
+    adminEventsList.addEventListener('click', function(e) {
+      var delBtn = e.target.closest('.admin-ev-del-btn');
+      if (delBtn) {
+        e.stopPropagation();
+        var eid = delBtn.dataset.eid;
+        if (eid && confirm('Delete this event permanently?')) {
+          window.deleteEvent(eid);
+        }
+      }
+    });
+  }
+
+  /* --- Escape key --- */
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      var modal = document.getElementById('eventDetailModal');
+      if (modal && modal.classList.contains('open')) {
+        window.closeEventDetail();
+      }
+    }
+  });
+});
 
 /* ==============================================
    INIT
