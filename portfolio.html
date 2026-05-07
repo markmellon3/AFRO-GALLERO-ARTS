@@ -382,7 +382,63 @@
           </div>
         </div>
       </div>
+      <!-- ========== ADMIN: CREATE EVENT ========== -->
+<div id="adminEventsSection" class="admin-section reveal" style="margin-top:2rem;">
+  <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Create Event
+  </h3>
 
+  <form id="eventCreateForm" class="admin-form-panel" style="padding:1.25rem;">
+    <div id="eventCreateError" style="display:none;color:var(--danger);font-size:.85rem;margin-bottom:.75rem;padding:.5rem .75rem;background:rgba(192,57,43,.08);border-radius:8px;"></div>
+
+    <div class="form-group">
+      <label for="evCreateTitle">Event Title *</label>
+      <input type="text" id="evCreateTitle" class="form-control" placeholder="e.g. Kampala Art Fair 2025" required>
+    </div>
+
+    <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;">
+      <div class="form-group">
+        <label for="evCreateDate">Event Date *</label>
+        <input type="date" id="evCreateDate" class="form-control" required>
+      </div>
+      <div class="form-group">
+        <label for="evCreateTime">Time</label>
+        <input type="text" id="evCreateTime" class="form-control" placeholder="e.g. 10:00 AM">
+      </div>
+      <div class="form-group">
+        <label for="evCreateLocation">Location</label>
+        <input type="text" id="evCreateLocation" class="form-control" placeholder="e.g. Kampala, Uganda">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="evCreateDesc">Description *</label>
+      <textarea id="evCreateDesc" class="form-control" rows="4" placeholder="Describe the event..." required></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Event Image *</label>
+      <div id="evImagePreviewWrap" style="display:none;margin-bottom:.75rem;position:relative;">
+        <img id="evImagePreview" src="" alt="Preview" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;border:1px solid var(--border);">
+        <button type="button" id="evImageRemoveBtn" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.6);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">&times;</button>
+      </div>
+      <input type="file" id="evCreateImage" class="form-control" accept="image/*">
+      <small style="color:var(--muted);font-size:.78rem;">Or paste an image URL below</small>
+      <input type="url" id="evCreateImageUrl" class="form-control" placeholder="https://example.com/image.jpg" style="margin-top:.35rem;">
+    </div>
+
+    <!-- Existing Events List -->
+    <div id="adminEventsList" style="margin-top:1.25rem;"></div>
+
+    <div style="display:flex;gap:.75rem;margin-top:1rem;">
+      <button type="submit" id="evCreateBtn" class="btn btn-primary" style="flex:1;">
+        <span class="btn-text">Publish Event</span>
+        <span class="btn-loader hidden"><div class="spinner" style="width:16px;height:16px;border-width:2px;"></div></span>
+      </button>
+    </div>
+  </form>
+</div>
       <!-- Messages -->
       <div class="admin-messages-section reveal" style="margin-top:2.5rem;">
         <div class="admin-msgs-header">
@@ -448,7 +504,7 @@
           <span style="font-size:.82rem;">Purchase orders from your website visitors will appear here.</span>
         </div>
       </div>
-
+      
       <!-- Message Developer -->
       <div class="admin-dev-msg-section reveal" style="margin-top:2rem;">
         <div class="admin-msgs-header">
