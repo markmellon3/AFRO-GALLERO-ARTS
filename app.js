@@ -690,6 +690,35 @@ function showAuth() {
 
 function showDashboard() {
   var authScreen = document.getElementById('authScreen');
+var dashboardScreen = document.getElementById('dashboardScreen');
+
+if (authScreen) authScreen.classList.add('hidden');
+if (dashboardScreen) dashboardScreen.classList.remove('hidden');
+
+var nameEl = document.getElementById('adminUserName');
+if (nameEl && state.userProfile) {
+  var fullName = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
+  nameEl.textContent = fullName || (auth.currentUser ? auth.currentUser.email : '');
+}
+
+/* ===== ADD THESE TWO LINES ===== */
+var mobileNameEl = document.getElementById('mobileMenuName');
+if (mobileNameEl && state.userProfile) {
+  var mobileFullName = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
+  mobileNameEl.textContent = mobileFullName || (auth.currentUser ? auth.currentUser.email.split('@')[0] : 'User');
+}
+var mobileEmailEl = document.getElementById('mobileMenuEmail');
+if (mobileEmailEl && auth.currentUser) {
+  mobileEmailEl.textContent = auth.currentUser.email || '';
+}
+/* =============================== */
+
+var artistInput = document.getElementById('artArtistName');
+if (artistInput && state.userProfile && !state.editMode) {
+  var fullName2 = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
+  if (fullName2) artistInput.value = fullName2;
+}
+  var authScreen = document.getElementById('authScreen');
   var dashboardScreen = document.getElementById('dashboardScreen');
   
   if (authScreen) authScreen.classList.add('hidden');
@@ -726,6 +755,7 @@ function showDashboard() {
     switchTab('order');
   }, 50);
 }
+
 
 /* ==============================================
    AUTH TAB SWITCHING (dedicated function)
@@ -891,6 +921,8 @@ auth.onAuthStateChanged(async function (user) {
   // CRITICAL FIX: Reset the about loaded flag so it reloads for new user
   aboutLoaded = false;
   
+  
+  
   if (user) {
     state.currentUser = user;
     
@@ -917,7 +949,18 @@ auth.onAuthStateChanged(async function (user) {
       console.error('Error loading user profile:', e);
       state.userProfile = { email: user.email };
     }
-
+    if (user) {
+  state.currentUser = user;
+  
+  /* ===== ADD FALLBACK BEFORE PROFILE LOADS ===== */
+  var mobileEmailEl = document.getElementById('mobileMenuEmail');
+  if (mobileEmailEl) mobileEmailEl.textContent = user.email || '';
+  var mobileNameEl = document.getElementById('mobileMenuName');
+  if (mobileNameEl) mobileNameEl.textContent = user.email ? user.email.split('@')[0] : 'User';
+  /* ============================================== */
+  
+  state.userInfoRef = db.ref('user_information/' + user.uid);
+    }
     showDashboard();
   } else {
     state.currentUser = null;
@@ -2972,6 +3015,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   var aboutForm = document.getElementById('aboutForm');
+  if (state.userProfile) {
+  state.userProfile.firstName = profileUpdates.firstName;
+  state.userProfile.secondName = profileUpdates.secondName || '';
+}
+var nameEl = document.getElementById('adminUserName');
+if (nameEl) nameEl.textContent = name;
+
+/* ===== ADD THESE TWO LINES ===== */
+var mobileNameEl = document.getElementById('mobileMenuName');
+if (mobileNameEl) mobileNameEl.textContent = name;
+var mobileEmailEl = document.getElementById('mobileMenuEmail');
+if (mobileEmailEl && auth.currentUser) mobileEmailEl.textContent = auth.currentUser.email || '';
+/* =============================== */
+
+var artistInput = document.getElementById('artArtistName');
+if (artistInput && !state.editMode) artistInput.value = name;
+
   if (aboutForm) {
     aboutForm.addEventListener('submit', async function (e) {
       e.preventDefault();
