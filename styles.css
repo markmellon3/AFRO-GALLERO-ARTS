@@ -1160,3 +1160,58 @@ textarea.form-control{resize:vertical;min-height:80px}
   letter-spacing: 0.5px;
   z-index: 2;
 }
+/* ========== ADMIN EVENT LIST ========== */
+.admin-ev-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.admin-ev-item img {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.admin-ev-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-ev-item-info h4 {
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-ev-item-info span {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.admin-ev-del-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(192, 57, 43, 0.2);
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.admin-ev-del-btn:hover {
+  background: rgba(192, 57, 43, 0.08);
+}
