@@ -392,14 +392,95 @@
     <div class="artists-profile-grid" id="artistsPageGrid"></div>
   </section>
 
-  <!-- ========== FAIRS & EVENTS PAGE ========== -->
-  <section id="page-fairs-events" class="page">
-    <div class="page-header">
-      <span class="section-tag reveal">On the Calendar</span>
-      <h1 class="page-title reveal" style="transition-delay:0.1s">Fairs & Events</h1>
+<!-- ========== FAIRS & EVENTS PAGE ========== -->
+<section id="page-fairs-events" class="page">
+  <div class="page-header" style="text-align:center;padding:2rem 1.5rem 1rem;">
+    <span class="section-tag reveal">On the Calendar</span>
+    <h1 class="page-title reveal" style="transition-delay:0.1s">Fairs & Events</h1>
+    <p class="reveal" style="transition-delay:0.2s;color:var(--text-secondary);max-width:600px;margin:0.5rem auto 0;">Discover upcoming art exhibitions, fairs, and cultural events from our artists.</p>
+  </div>
+  <div class="container">
+    <div id="eventsGrid" class="events-grid"></div>
+    <div id="eventsEmpty" class="gallery-empty" style="display:none;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <p>No events posted yet. Check back soon!</p>
     </div>
-    <div class="gallery-empty"><i data-lucide="calendar" style="width:48px;height:48px;color:var(--muted);"></i><p>Coming soon.</p></div>
-  </section>
+  </div>
+</section>
+
+<!-- ========== EVENT DETAIL MODAL ========== -->
+<div id="eventDetailModal" class="modal-overlay">
+  <div class="modal-box" style="max-width:680px;max-height:92vh;overflow-y:auto;">
+    <!-- Close -->
+    <button class="modal-close" id="evClose" aria-label="Close">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+
+    <!-- Event Image -->
+    <div id="evImageWrap" style="position:relative;margin:-1.5rem -1.5rem 1.5rem;">
+      <img id="evImage" src="" alt="" style="width:100%;max-height:360px;object-fit:cover;display:block;">
+      <!-- Date Badge on image -->
+      <div id="evDateBadge" class="ev-date-badge">
+        <span id="evBadgeMonth"></span>
+        <span id="evBadgeDay"></span>
+      </div>
+    </div>
+
+    <!-- Event Info -->
+    <h2 id="evTitle" style="font-size:1.5rem;font-weight:700;margin-bottom:.5rem;"></h2>
+
+    <div class="ev-meta-row">
+      <span id="evDateText" class="ev-meta-item">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span></span>
+      </span>
+      <span id="evTimeText" class="ev-meta-item">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span></span>
+      </span>
+      <span id="evYearText" class="ev-meta-item">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        <span></span>
+      </span>
+    </div>
+
+    <div id="evLocation" class="ev-meta-item" style="margin-bottom:1rem;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span></span>
+    </div>
+
+    <div id="evDescription" style="line-height:1.7;color:var(--fg-s);margin-bottom:1.5rem;white-space:pre-wrap;"></div>
+
+    <!-- Comments Section -->
+    <div class="ev-comments-section">
+      <div class="ev-comments-header">
+        <h3 style="font-size:1.1rem;font-weight:600;">Comments</h3>
+        <span id="evCommentCount" class="ev-comment-count">0</span>
+      </div>
+
+      <!-- Comments List -->
+      <div id="evCommentsList" class="ev-comments-list"></div>
+
+      <!-- Comment Input -->
+      <div id="evCommentInputWrap" class="ev-comment-input-wrap">
+        <div id="evCommentAuthPrompt" style="display:none;text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:10px;color:var(--muted);font-size:.9rem;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto .5rem;display:block;opacity:.5;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <a href="#" id="evCommentLoginLink" style="color:var(--accent);font-weight:600;">Sign in</a> to leave a comment
+        </div>
+        <div id="evCommentFormWrap" style="display:none;">
+          <div class="ev-comment-form">
+            <div id="evCommentAvatar" class="ev-comment-avatar"></div>
+            <input type="text" id="evCommentInput" class="ev-comment-input" placeholder="Write a comment..." maxlength="500">
+            <button id="evCommentSendBtn" class="ev-comment-send-btn" title="Send">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+          <div id="evCommentError" style="display:none;color:var(--danger);font-size:.8rem;margin-top:.35rem;padding-left:2.75rem;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
   <!-- ========== PRICE DATABASE PAGE ========== -->
   <section id="page-price-database" class="page">
