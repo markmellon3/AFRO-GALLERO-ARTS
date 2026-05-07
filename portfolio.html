@@ -278,22 +278,7 @@
         </div>
       </div>
 
-      <!-- Live Traffic -->
-      <div class="admin-webstatus-section reveal" style="margin-bottom:2rem;">
-        <div class="webstatus-header">
-          <h3 style="font-family:var(--font-display);font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
-            <i data-lucide="activity" style="width:20px;height:20px;color:var(--accent);"></i> Live Traffic
-          </h3>
-          <span id="wsLastUpdated" style="font-size:.75rem;color:var(--muted);"></span>
-        </div>
-        <div class="webstatus-grid">
-          <div class="ws-card"><div class="ws-icon ws-icon-blue"><i data-lucide="eye" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTotalViews">—</span><span class="ws-label">Total Views</span></div></div>
-          <div class="ws-card"><div class="ws-icon ws-icon-purple"><i data-lucide="users" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTotalVisitors">—</span><span class="ws-label">Total Visitors</span></div></div>
-          <div class="ws-card"><div class="ws-icon ws-icon-green"><i data-lucide="eye" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTodayViews">—</span><span class="ws-label">Views Today</span></div></div>
-          <div class="ws-card"><div class="ws-icon ws-icon-amber"><i data-lucide="user-plus" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsTodayVisitors">—</span><span class="ws-label">Visitors Today</span></div></div>
-          <div class="ws-card ws-card-active"><div class="ws-icon ws-icon-live"><i data-lucide="radio" style="width:20px;height:20px;"></i></div><div class="ws-info"><span class="ws-num" id="wsActiveNow">—</span><span class="ws-label">Active Now</span></div><span class="ws-live-dot"></span></div>
-        </div>
-      </div>
+    
 
       <!-- Upload Form + Artwork List -->
       <div class="admin-grid">
@@ -350,6 +335,8 @@
                   <option value="Sculptures">Sculptures</option>
                   <option value="Digital Art">Digital Art</option>
                   <option value="Photography">Photography</option>
+                  <option value="Drawing">Drawing</option>
+<option value="inkart">Inkart</option>
                   <option value="Textiles">Textiles</option>
                   <option value="Mixed Media">Mixed Media</option>
                 </select>
@@ -466,7 +453,7 @@
       <div class="admin-dev-msg-section reveal" style="margin-top:2rem;">
         <div class="admin-msgs-header">
           <h3 style="font-family:var(--font-display);font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:.5rem;margin:0;">
-            <i data-lucide="send" style="width:20px;height:20px;color:var(--accent);"></i> Message Developer
+            <i data-lucide="send" style="width:20px;height:20px;color:var(--accent);"></i> Message Support center
           </h3>
           <span id="devMsgSentBadge" class="dev-msg-sent-badge hidden">Sent</span>
         </div>
@@ -492,7 +479,7 @@
               <span class="btn-text">Send Message</span>
               <span class="btn-loader hidden"><div class="spinner"></div></span>
             </button>
-            <span style="font-size:.78rem;color:var(--muted);">Messages are saved to Firebase.</span>
+            <span style="font-size:.78rem;color:var(--muted);">will be notificated within short periodof time.</span>
           </div>
         </form>
       </div>
@@ -771,9 +758,9 @@
     </div>
   </div>
 
-  <!-- ===== ORDER DETAIL MODAL ===== -->
+  <!-- ===== ORDER DETAIL MODAL (Updated with Thread) ===== -->
   <div id="orderDetailModal" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-card" style="max-width:540px;">
+    <div class="modal-card" style="max-width:560px;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem;gap:.75rem;">
         <div>
           <h3 id="odName" style="font-family:var(--font-display);margin:0 0 .35rem 0;"></h3>
@@ -785,7 +772,7 @@
         <button type="button" id="odClose" class="btn btn-icon" style="flex-shrink:0;"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
       </div>
       <div id="odDate" style="font-size:.78rem;color:var(--muted);margin-bottom:1rem;"></div>
-
+      
       <div class="order-det-artwork">
         <img id="odArtImg" src="" alt="">
         <div class="order-det-art-info">
@@ -794,14 +781,15 @@
           <span class="order-det-art-cat" id="odArtCat"></span>
         </div>
       </div>
-
+      
       <div class="order-det-message" id="odMsg"></div>
-
+      
       <div class="order-det-status-row">
         <span style="font-size:.82rem;font-weight:600;color:var(--fg-s);">Status:</span>
         <span class="order-det-badge" id="odStatus"></span>
+        <span class="order-det-badge hidden" id="odThreadStatus"></span>
       </div>
-
+      
       <div class="order-det-actions">
         <a id="odCall" href="#" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="phone" style="width:15px;height:15px;"></i> Call</a>
         <a id="odWa" href="#" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="message-circle" style="width:15px;height:15px;"></i> WhatsApp</a>
@@ -810,56 +798,30 @@
         <button type="button" id="odMarkDone" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="check-circle" style="width:15px;height:15px;"></i> Done</button>
         <button type="button" id="odDetailDel" class="btn btn-danger btn-sm"><i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete</button>
       </div>
-    </div>
-  </div>
-
-  <!-- ===== DELETE ORDER MODAL ===== -->
-  <div id="deleteOrderModal" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-card" style="max-width:400px;">
-      <h3 style="display:flex;align-items:center;gap:.5rem;color:var(--danger);font-family:var(--font-display);margin-bottom:1rem;">
-        <i data-lucide="alert-triangle" style="width:22px;height:22px;"></i> Delete Order
-      </h3>
-      <div class="modal-confirm"><p id="delOrderText">This order will be permanently removed.</p></div>
-      <div class="modal-actions">
-        <button id="delOrderCancel" class="btn btn-outline">Cancel</button>
-        <button id="delOrderConfirm" class="btn btn-danger"><span class="btn-text">Delete</span><span class="btn-loader hidden"><div class="spinner"></div></span></button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== MESSAGE DETAIL MODAL ===== -->
-  <div id="msgDetailModal" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-card" style="max-width:540px;">
-      <div class="msg-detail-info">
-        <div>
-          <h3 class="msg-detail-name" id="msgDetailName"></h3>
-          <div class="msg-detail-contacts">
-            <span id="msgDetailEmail"><i data-lucide="mail" style="width:13px;height:13px;"></i></span>
-            <span id="msgDetailContact"><i data-lucide="phone" style="width:13px;height:13px;"></i></span>
-          </div>
+      
+      <!-- Thread Messages Section -->
+      <div id="odThreadSection" style="display:none;">
+        <div class="thread-section-header">
+          <i data-lucide="message-circle" style="width:18px;height:18px;"></i>
+          <h4>Conversation</h4>
         </div>
-        <button type="button" id="closeDetailBtn" class="btn btn-icon" style="flex-shrink:0;"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
-      </div>
-      <div class="msg-detail-date" id="msgDetailDate"></div>
-      <div class="msg-detail-text" id="msgDetailText"></div>
-      <div class="msg-detail-actions">
-        <a id="msgDetailCall" href="#" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="phone" style="width:15px;height:15px;"></i> Call</a>
-        <a id="msgDetailReplyWA" href="#" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="message-circle" style="width:15px;height:15px;"></i> WhatsApp</a>
-        <a id="msgDetailReplyEmail" href="#" class="btn btn-outline btn-sm" style="display:none;"><i data-lucide="mail" style="width:15px;height:15px;"></i> Email</a>
-        <button type="button" id="msgDetailToggleRead" class="btn btn-outline btn-sm"><i data-lucide="eye" style="width:15px;height:15px;"></i> <span class="toggle-read-text">Mark Unread</span></button>
-        <button type="button" id="msgDetailDelete" class="btn btn-danger btn-sm"><i data-lucide="trash-2" style="width:15px;height:15px;"></i> Delete</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== DELETE MESSAGE MODAL ===== -->
-  <div id="deleteMsgModal" class="modal-overlay" role="dialog" aria-modal="true">
-    <div class="modal-card" style="max-width:400px;">
-      <h3 style="display:flex;align-items:center;gap:.5rem;color:var(--danger);font-family:var(--font-display);margin-bottom:1rem;"><i data-lucide="alert-triangle" style="width:22px;height:22px;"></i> Delete Message</h3>
-      <div class="modal-confirm"><p id="deleteMsgText">This message will be permanently removed.</p></div>
-      <div class="modal-actions">
-        <button id="cancelDeleteMsgBtn" class="btn btn-outline">Cancel</button>
-        <button id="confirmDeleteMsgBtn" class="btn btn-danger"><span class="btn-text">Delete</span><span class="btn-loader hidden"><div class="spinner"></div></span></button>
+        
+        <!-- Accept/Reject Buttons (for thread orders) -->
+        <div id="odThreadStatusActions" style="display:none;">
+          <button type="button" id="threadAcceptBtn">Accept Order</button>
+          <button type="button" id="threadRejectBtn">Reject Order</button>
+        </div>
+        
+        <!-- Messages Container -->
+        <div id="odThreadMessages"></div>
+        
+        <!-- Reply Form -->
+        <form id="odThreadReplyForm" style="display:none;">
+          <input type="text" id="threadReplyInput" placeholder="Type your reply..." required>
+          <button type="submit" id="threadReplyBtn">
+            <i data-lucide="send" style="width:15px;height:15px;"></i> Send Reply
+          </button>
+        </form>
       </div>
     </div>
   </div>
