@@ -59,14 +59,419 @@ const state = {
   currentTab: null,
   userAnalytics: null,
   mobileMenuOpen: false,
-  galleryTheme: {
-    accentColor: '#b8860b',
-    fontFamily: 'Inter',
-    layout: 'grid',
-    showPrice: true,
-    showCategory: true
+   galleryTheme: {
+      accentColor: '#b8860b',
+      fontFamily: 'Inter',
+      layout: 'grid',
+      showPrice: true,
+      showCategory: true
+    },
+    /* Thread system state */
+    activeOrderThreadKey: null,
+    threadMessages: [],
+    threadInfo: null,
+    threadReplySending: false
+  };
+/* ==============================================
+   THREAD SYSTEM (Replaces original ThreadSystem + openOrderDetail + loadOrderThread + reply handlers)
+   ============================================== */
+const ThreadSystem = (function() {
+  const MSG_PATH = 'user_messages';
+  let activeThreadRef = null;
+  let activeThreadKey = null;
+
+  function sanitizeEmail(email) {
+    if (!email) return 'unknown';
+    return email.replace(/\./g, '_dot_').replace(/@/g, '_at_')
+      .replace(/#/g, '_hash_').replace(/\[/g, '_lb_')
+      .replace(/\]/g, '_rb_').replace(/\//g, '_slash_')
+      .replace(/%/g, '_pct_').replace(/\$/g, '_dollar_')
+      .replace(/\{/g, '_lc_').replace(/\}/g, '_rc_');
   }
-};
+
+  function getMyEmail() {
+    return auth.currentUser ? auth.currentUser.email : null;
+  }
+
+  function makeThreadKey(email1, email2, artworkId) {
+    var s = [sanitizeEmail(email1 || 'unknown'), sanitizeEmail(email2 || 'unknown')].sort();
+    return s[0] + '___' + s[1] + '___' + (artworkId || 'none');
+  }
+
+  function formatMsgTime(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var now = new Date();
+    var diff = now - d;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diff < 604800000) return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function loadThread(threadKey, callback) {
+    var email = getMyEmail();
+    if (!email || !db) return;
+    detachThreadListener();
+    activeThreadKey = threadKey;
+    activeThreadRef = db.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads/' + threadKey);
+    activeThreadRef.on('value', function(snap) {
+      var data = snap.val();
+      if (!data) { callback({ info: null, messages: [] }); return; }
+      var info = data.info || {};
+      var messages = data.messages || {};
+      var msgArray = Object.entries(messages).map(function(e) { return Object.assign({ _key: e[0] }, e[1]); });
+      msgArray.sort(function(a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+      callback({ info: info, messages: msgArray });
+    });
+  }
+
+  function detachThreadListener() {
+    if (activeThreadRef) { activeThreadRef.off('value'); activeThreadRef = null; }
+    activeThreadKey = null;
+  }
+
+  async function sendReply(threadKey, text, orderData) {
+    var myEmail = getMyEmail();
+    if (!myEmail || !text.trim() || !db) {
+      console.error('sendReply: Missing email, text, or db');
+      return false;
+    }
+    var myName = state.userProfile
+      ? ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim() || myEmail.split('@')[0]
+      : myEmail.split('@')[0];
+    var msgKey = Date.now();
+    var replyMsg = {
+      senderEmail: myEmail,
+      senderName: myName,
+      text: text.trim(),
+      type: 'reply',
+      createdAt: msgKey
+    };
+    var updates = {};
+    var snap = await db.ref(MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info').once('value');
+    var info = snap.val();
+    var otherEmail = null;
+    if (info) {
+      otherEmail = info.otherParticipantEmail;
+    } else {
+      if (!orderData) { console.error('sendReply: Thread not found and no order data'); return false; }
+      console.log('Creating new thread:', threadKey);
+      otherEmail = orderData.clientEmail;
+      var threadInfo = {
+        otherParticipantEmail: otherEmail,
+        otherParticipantName: orderData.clientName || 'Client',
+        artworkId: orderData.artworkId || '',
+        artworkTitle: orderData.artworkTitle || '',
+        artworkImage: orderData.artworkImage || '',
+        artworkPrice: orderData.artworkPrice || 0,
+        artworkCurrency: orderData.artworkCurrency || 'UGX',
+        orderStatus: orderData.status || 'pending',
+        lastMessage: replyMsg.text,
+        lastMessageAt: msgKey,
+        unreadCount: 0,
+        createdAt: Date.now()
+      };
+      updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info'] = threadInfo;
+      if (otherEmail) {
+        updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info'] = Object.assign({}, threadInfo, {
+          otherParticipantEmail: myEmail,
+          otherParticipantName: myName,
+          unreadCount: 1
+        });
+      }
+      if (orderData.id && state.userOrdersRef) {
+        updates['user_information/' + auth.currentUser.uid + '/orders/' + orderData.id + '/threadKey'] = threadKey;
+      }
+    }
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = replyMsg;
+    if (info) {
+      updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessage'] = replyMsg.text;
+      updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+    }
+    if (otherEmail) {
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = replyMsg;
+      if (info) {
+        updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessage'] = replyMsg.text;
+        updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+        var otherSnap = await db.ref(MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/unreadCount').once('value');
+        updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/unreadCount'] = (otherSnap.val() || 0) + 1;
+      }
+    }
+    console.log('Reply updates:', Object.keys(updates).length, 'paths');
+    await db.ref().update(updates);
+    state.activeOrderThreadKey = threadKey;
+    return true;
+  }
+
+  async function updateStatus(threadKey, newStatus) {
+    var myEmail = getMyEmail();
+    if (!myEmail || !db) return;
+    var snap = await db.ref(MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info').once('value');
+    var info = snap.val();
+    if (!info) return;
+    var otherEmail = info.otherParticipantEmail;
+    var msgKey = Date.now();
+    var statusLabel = newStatus === 'accepted' ? 'Order Accepted' : 'Order Rejected';
+    var statusMsg = {
+      senderEmail: myEmail,
+      senderName: state.userProfile ? ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim() : 'Artist',
+      text: statusLabel,
+      type: 'status_change',
+      newStatus: newStatus,
+      createdAt: msgKey
+    };
+    var updates = {};
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/orderStatus'] = newStatus;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessage'] = statusLabel;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+    updates[MSG_PATH + '/' + sanitizeEmail(myEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = statusMsg;
+    if (otherEmail) {
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/orderStatus'] = newStatus;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessage'] = statusLabel;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/lastMessageAt'] = msgKey;
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/messages/' + msgKey] = statusMsg;
+      var otherSnap = await db.ref(MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/unreadCount').once('value');
+      updates[MSG_PATH + '/' + sanitizeEmail(otherEmail) + '/threads/' + threadKey + '/info/unreadCount'] = (otherSnap.val() || 0) + 1;
+    }
+    if (info.artworkId && state.userOrdersRef) {
+      state.allOrders.forEach(function(o) {
+        if (o.threadKey === threadKey) {
+          state.userOrdersRef.child(o.id + '/status').set(newStatus === 'accepted' ? 'completed' : 'rejected').catch(function() {});
+        }
+      });
+    }
+    await db.ref().update(updates);
+    return true;
+  }
+
+  async function markThreadRead(threadKey) {
+    var email = getMyEmail();
+    if (!email || !db) return;
+    await db.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads/' + threadKey + '/info/unreadCount').set(0);
+  }
+
+  async function getUnreadThreadCount() {
+    var email = getMyEmail();
+    if (!email || !db) return 0;
+    var snap = await db.ref(MSG_PATH + '/' + sanitizeEmail(email) + '/threads').once('value');
+    var threads = snap.val();
+    if (!threads) return 0;
+    var total = 0;
+    Object.values(threads).forEach(function(t) {
+      if (t && t.info && t.info.unreadCount) total += t.info.unreadCount;
+    });
+    return total;
+  }
+
+  function createThreadKeyFromOrder(order) {
+    if (!order) return null;
+    return makeThreadKey(order.clientEmail || '', getMyEmail() || '', order.artworkId || order.id || '');
+  }
+
+  return {
+    loadThread: loadThread,
+    detachThreadListener: detachThreadListener,
+    sendReply: sendReply,
+    updateStatus: updateStatus,
+    markThreadRead: markThreadRead,
+    getUnreadThreadCount: getUnreadThreadCount,
+    formatMsgTime: formatMsgTime,
+    sanitizeEmail: sanitizeEmail,
+    makeThreadKey: makeThreadKey,
+    getActiveThreadKey: function() { return activeThreadKey; },
+    createThreadKeyFromOrder: createThreadKeyFromOrder
+  };
+})();
+
+/* ==============================================
+   ORDER DETAIL (with thread + image fix)
+   ============================================== */
+function openOrderDetail(id, threadKey) {
+  var o = state.allOrders.find(function (x) { return x.id === id; });
+  if (!o) return;
+  state.orderDetailId = id;
+  state.activeOrderThreadKey = threadKey || o.threadKey || null;
+  if (o.viewed === false && state.userOrdersRef) {
+    state.userOrdersRef.child(id + '/viewed').set(true).catch(function () {});
+  }
+  if (state.activeOrderThreadKey) {
+    ThreadSystem.markThreadRead(state.activeOrderThreadKey).catch(function () {});
+  }
+  var modal = document.getElementById('orderDetailModal');
+  if (!modal) return;
+  var odName = document.getElementById('odName');
+  var odEmail = document.getElementById('odEmail');
+  var odPhone = document.getElementById('odPhone');
+  var odDate = document.getElementById('odDate');
+  var artImg = document.getElementById('odArtImg');
+  var odArtTitle = document.getElementById('odArtTitle');
+  var odArtPrice = document.getElementById('odArtPrice');
+  var odArtCat = document.getElementById('odArtCat');
+  var odMsg = document.getElementById('odMsg');
+  if (odName) odName.textContent = o.clientName || 'Unknown';
+  if (odEmail) odEmail.innerHTML = '<i data-lucide="mail" style="width:14px;height:14px;"></i> ' + escapeHtml(o.clientEmail || 'N/A');
+  if (odPhone) odPhone.innerHTML = '<i data-lucide="phone" style="width:14px;height:14px;"></i> ' + escapeHtml(o.clientPhone || 'N/A');
+  if (odDate) odDate.textContent = formatFullDate(o.createdAt);
+  if (artImg) {
+    var imageUrl = o.artworkImage || '';
+    artImg.style.display = 'block';
+    if (imageUrl) {
+      artImg.src = imageUrl;
+      artImg.onerror = function () { this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23f0f0f0' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23999' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E"; };
+    } else {
+      artImg.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect fill='%23f0f0f0' width='200' height='200'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23999' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
+    }
+  }
+  if (odArtTitle) odArtTitle.textContent = o.artworkTitle || 'Artwork';
+  if (odArtPrice) odArtPrice.textContent = formatPrice(o.artworkPrice, o.artworkCurrency);
+  if (odArtCat) odArtCat.textContent = o.artworkCategory || '';
+  if (odMsg) odMsg.textContent = o.message || 'No message from client.';
+  var st = o.status || 'pending';
+  var badge = document.getElementById('odStatus');
+  if (badge) { badge.textContent = orderStatusLabel(st); badge.className = 'order-det-badge ' + orderStatusBadgeCls(st); }
+  var markCont = document.getElementById('odMarkContacted');
+  var markDone = document.getElementById('odMarkDone');
+  if (markCont) markCont.style.display = st === 'pending' ? 'inline-flex' : 'none';
+  if (markDone) markDone.style.display = st === 'contacted' ? 'inline-flex' : 'none';
+  var rawPhone = (o.clientPhone || '').trim();
+  var digits = rawPhone.replace(/\D/g, '');
+  var cleanPhone = digits;
+  if (cleanPhone.startsWith('0') && cleanPhone.length >= 10) cleanPhone = '256' + cleanPhone.substring(1);
+  var callLink = document.getElementById('odCall');
+  var waLink = document.getElementById('odWa');
+  if (digits.length >= 7 && cleanPhone.length >= 10) {
+    if (callLink) { callLink.href = 'tel:+' + cleanPhone; callLink.style.display = 'inline-flex'; }
+    if (cleanPhone.length >= 12 && waLink) { waLink.href = 'https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent('Hello ' + (o.clientName || '') + ', regarding your interest in "' + (o.artworkTitle || '') + '" on Afro Gallero.'); waLink.style.display = 'inline-flex'; }
+    else if (waLink) { waLink.style.display = 'none'; }
+  } else { if (callLink) callLink.style.display = 'none'; if (waLink) waLink.style.display = 'none'; }
+  var emlLink = document.getElementById('odEml');
+  var rawEmail = (o.clientEmail || '').trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) && emlLink) {
+    emlLink.href = 'mailto:' + rawEmail + '?subject=' + encodeURIComponent('Re: Your interest in "' + (o.artworkTitle || '') + '" — Afro Gallero') + '&body=' + encodeURIComponent('Hi ' + (o.clientName || '') + ',\n\nThank you for your interest in "' + (o.artworkTitle || '') + '" on Afro Gallero.\n\n' + (o.message ? 'Your message:\n"' + o.message.substring(0, 200) + '"\n\n' : '') + 'Best regards');
+    emlLink.style.display = 'inline-flex';
+  } else if (emlLink) { emlLink.style.display = 'none'; }
+
+  var threadSection = document.getElementById('odThreadSection');
+  if (threadSection) {
+    threadSection.style.display = 'block';
+    if (state.activeOrderThreadKey) {
+      loadOrderThread(state.activeOrderThreadKey);
+      if (markCont) markCont.style.display = 'none';
+      if (markDone) markDone.style.display = 'none';
+    } else {
+      var messagesContainer = document.getElementById('odThreadMessages');
+      if (messagesContainer) messagesContainer.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.9rem;">Send a message to start the conversation with this client.</div>';
+      var statusActions = document.getElementById('odThreadStatusActions');
+      if (statusActions) statusActions.style.display = 'none';
+      var replyForm = document.getElementById('threadReplyForm');
+      if (replyForm) replyForm.style.display = 'flex';
+    }
+  }
+  if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [modal] });
+  modal.classList.add('open');
+}
+
+function loadOrderThread(threadKey) {
+  var messagesContainer = document.getElementById('odThreadMessages');
+  var statusActions = document.getElementById('odThreadStatusActions');
+  var replyForm = document.getElementById('threadReplyForm');
+  if (!messagesContainer) return;
+  messagesContainer.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--muted);"><div class="spinner" style="margin:0 auto 0.5rem;"></div>Loading conversation...</div>';
+  ThreadSystem.loadThread(threadKey, function (data) {
+    state.threadInfo = data.info;
+    state.threadMessages = data.messages;
+    if (!data.info) {
+      messagesContainer.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.9rem;">Send a message to start the conversation.</div>';
+      if (statusActions) statusActions.style.display = 'none';
+      if (replyForm) replyForm.style.display = 'flex';
+      return;
+    }
+    var threadStatusEl = document.getElementById('odThreadStatus');
+    if (threadStatusEl && data.info.orderStatus) {
+      threadStatusEl.textContent = orderStatusLabel(data.info.orderStatus);
+      threadStatusEl.className = 'order-det-badge ' + orderStatusBadgeCls(data.info.orderStatus);
+      var mainBadge = document.getElementById('odStatus');
+      if (mainBadge) { mainBadge.textContent = orderStatusLabel(data.info.orderStatus); mainBadge.className = 'order-det-badge ' + orderStatusBadgeCls(data.info.orderStatus); }
+    }
+    if (statusActions) {
+      statusActions.style.display = (data.info.orderStatus || 'pending') === 'pending' ? 'flex' : 'none';
+    }
+    if (replyForm) replyForm.style.display = 'flex';
+    if (data.messages.length === 0) {
+      messagesContainer.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.9rem;">No messages yet. Send a reply to start the conversation.</div>';
+      return;
+    }
+    var myEmail = auth.currentUser ? auth.currentUser.email : '';
+    var html = '';
+    data.messages.forEach(function (msg) {
+      if (msg.type === 'status_change') {
+        var sc = msg.newStatus === 'accepted' ? '#22c55e' : '#dc2626';
+        var si = msg.newStatus === 'accepted' ? '✓' : '✗';
+        html += '<div class="thread-status-msg" style="text-align:center;padding:0.4rem 1rem;border-radius:9999px;background:var(--bg-secondary);color:' + sc + ';font-size:0.82rem;font-weight:600;">' + si + ' ' + escapeHtml(msg.text) + '</div>';
+        return;
+      }
+      var isSent = msg.senderEmail === myEmail;
+      var bubbleCls = isSent ? 'thread-bubble-sent' : 'thread-bubble-received';
+      if (msg.type === 'order' && !isSent) bubbleCls = 'thread-bubble-order';
+      html += '<div class="thread-bubble ' + bubbleCls + '">';
+      html += '<div class="thread-bubble-sender">' + escapeHtml(msg.senderName || 'Unknown') + '</div>';
+      html += '<div class="thread-bubble-text">' + escapeHtml(msg.text || '') + '</div>';
+      if (msg.type === 'order' && msg.orderPhone) html += '<div class="thread-bubble-details"><strong>Phone:</strong> ' + escapeHtml(msg.orderPhone) + '</div>';
+      html += '<div class="thread-bubble-time">' + ThreadSystem.formatMsgTime(msg.createdAt) + '</div>';
+      html += '</div>';
+    });
+    messagesContainer.innerHTML = html;
+    requestAnimationFrame(function () { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
+  });
+}
+
+function closeOrderDetail() {
+  var m = document.getElementById('orderDetailModal');
+  if (m) m.classList.remove('open');
+  state.orderDetailId = null;
+  ThreadSystem.detachThreadListener();
+  state.activeOrderThreadKey = null;
+  state.threadMessages = [];
+  state.threadInfo = null;
+  var messagesContainer = document.getElementById('odThreadMessages');
+  if (messagesContainer) messagesContainer.innerHTML = '';
+}
+
+
+
+  var threadAcceptBtn = document.getElementById('threadAcceptBtn');
+  if (threadAcceptBtn) {
+    threadAcceptBtn.addEventListener('click', async function () {
+      if (!state.activeOrderThreadKey) return;
+      this.disabled = true; this.textContent = 'Accepting...';
+      try { await ThreadSystem.updateStatus(state.activeOrderThreadKey, 'accepted'); showToast('Order accepted!', 'success'); }
+      catch (err) { showToast('Failed to update', 'error'); }
+      this.disabled = false; this.textContent = 'Accept Order';
+    });
+  }
+
+  var threadRejectBtn = document.getElementById('threadRejectBtn');
+  if (threadRejectBtn) {
+    threadRejectBtn.addEventListener('click', async function () {
+      if (!state.activeOrderThreadKey) return;
+      this.disabled = true; this.textContent = 'Rejecting...';
+      try { await ThreadSystem.updateStatus(state.activeOrderThreadKey, 'rejected'); showToast('Order rejected', 'info'); }
+      catch (err) { showToast('Failed to update', 'error'); }
+      this.disabled = false; this.textContent = 'Reject Order';
+    });
+  }
+
+
+/* ==============================================
+   ORDER IMAGE CSS
+   ============================================== */
+(function() {
+  var style = document.createElement('style');
+  style.textContent = '#odArtImg{width:100%;max-width:300px;height:auto;max-height:300px;object-fit:cover;border-radius:12px;border:1px solid var(--border);background:var(--bg-secondary);display:block;margin:0 auto 1rem;}.thread-bubble{max-width:80%;padding:.75rem 1rem;border-radius:16px;margin-bottom:.5rem;word-wrap:break-word}.thread-bubble-sent{background:var(--accent);color:#fff;margin-left:auto;border-bottom-right-radius:4px}.thread-bubble-received{background:var(--bg-secondary);color:var(--fg);margin-right:auto;border-bottom-left-radius:4px}.thread-bubble-order{background:linear-gradient(135deg,rgba(59,130,246,.1),rgba(139,92,246,.1));border:1px solid rgba(59,130,246,.2);margin-right:auto;border-bottom-left-radius:4px}.thread-bubble-sender{font-size:.75rem;font-weight:600;margin-bottom:.25rem;opacity:.8}.thread-bubble-text{font-size:.9rem;line-height:1.4}.thread-bubble-time{font-size:.7rem;margin-top:.25rem;opacity:.7}#odThreadMessages{max-height:400px;overflow-y:auto;padding:1rem;background:var(--bg-secondary);border-radius:12px;margin-bottom:1rem}#threadReplyForm{display:flex;gap:.5rem;align-items:center}#threadReplyInput{flex:1;padding:.75rem 1rem;border:1px solid var(--border);border-radius:9999px;background:var(--card);color:var(--fg);font-size:.9rem;outline:none;transition:border-color .2s}#threadReplyInput:focus{border-color:var(--accent)}#threadReplyBtn{padding:.75rem 1.25rem;background:var(--accent);color:#fff;border:none;border-radius:9999px;cursor:pointer;display:flex;align-items:center;gap:.5rem;font-size:.9rem;font-weight:500;transition:opacity .2s;white-space:nowrap}#threadReplyBtn:hover{opacity:.9}#threadReplyBtn:disabled{opacity:.5;cursor:not-allowed}';
+  document.head.appendChild(style);
+})();
 
 /* ==============================================
    GALLERY THEME PRESETS
@@ -548,23 +953,17 @@ function cleanupListeners() {
     state.userAnalyticsRef.off('value');
     state.listenersAttached.analytics = false;
   }
+  /* Detach thread listener on cleanup */
+  ThreadSystem.detachThreadListener();
+  state.activeOrderThreadKey = null;
+  state.threadMessages = [];
+  state.threadInfo = null;
 }
 
 /* ==============================================
    ABOUT & PROFILE SECTION (FIXED)
    ============================================== */
-var aboutLoaded = false;  // This is now reset in onAuthStateChanged
 
-window.initAboutSection = function () {
-  if (!state.userAboutRef) return;
-  
-  // Reset and reload for current user
-  aboutLoaded = false;
-  
-  if (aboutLoaded) return;
-  aboutLoaded = true;
-  loadAboutData();
-};
 
 function loadAboutData() {
   if (!state.userAboutRef) return;
@@ -624,57 +1023,7 @@ function loadAboutData() {
   });
 }
 
-/* ==============================================
-   SHOW DASHBOARD (FIXED - clear UI before attaching listeners)
-   ============================================== */
-function showDashboard() {
-  var authScreen = document.getElementById('authScreen');
-  var dashboardScreen = document.getElementById('dashboardScreen');
-  
-  if (authScreen) authScreen.classList.add('hidden');
-  if (dashboardScreen) dashboardScreen.classList.remove('hidden');
 
-  var nameEl = document.getElementById('adminUserName');
-  if (nameEl && state.userProfile) {
-    var fullName = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
-    nameEl.textContent = fullName || (auth.currentUser ? auth.currentUser.email : '');
-  }
-
-  var artistInput = document.getElementById('artArtistName');
-  if (artistInput && state.userProfile && !state.editMode) {
-    var fullName2 = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
-    if (fullName2) artistInput.value = fullName2;
-  }
-
-  var devName = document.getElementById('devMsgName');
-  var devEmail = document.getElementById('devMsgEmail');
-  if (devName && state.userProfile) {
-    var fullName3 = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
-    if (fullName3) devName.value = fullName3;
-  }
-  if (devEmail && auth.currentUser) {
-    devEmail.value = auth.currentUser.email || '';
-  }
-
-  // Clear rendered lists immediately to prevent showing stale data
-  var adminList = document.getElementById('adminArtworkList');
-  if (adminList) adminList.innerHTML = '';
-  
-  var msgsList = document.getElementById('msgsList');
-  if (msgsList) msgsList.innerHTML = '';
-  
-  var odGrid = document.getElementById('odGrid');
-  if (odGrid) odGrid.innerHTML = '';
-
-  attachAllListeners();
-  initRevealAnimations();
-  updateDarkModeIcon();
-  loadGalleryTheme();
-  
-  setTimeout(function() {
-    switchTab('order');
-  }, 50);
-}
 
 /* ==============================================
    ATTACH ALL LISTENERS (FIXED - reset flags)
@@ -1082,6 +1431,158 @@ document.addEventListener('DOMContentLoaded', function() {
   var saveThemeBtn = document.getElementById('saveGalleryThemeBtn');
   if (saveThemeBtn) {
     saveThemeBtn.addEventListener('click', saveGalleryTheme);
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  // =============================================
+  // THREAD REPLY BUTTON HANDLER (MISSING!)
+  // =============================================
+  var threadReplyBtn = document.getElementById('threadReplyBtn');
+  if (threadReplyBtn) {
+    threadReplyBtn.addEventListener('click', async function() {
+      var input = document.getElementById('threadReplyInput');
+      if (!input || !input.value.trim()) {
+        showToast('Please type a message', 'info');
+        return;
+      }
+      
+      // Get current order data
+      var order = state.allOrders.find(function(o) {
+        return o.id === state.orderDetailId;
+      });
+      if (!order) {
+        showToast('Order not found', 'error');
+        return;
+      }
+      
+      // Use existing thread key or create one from order
+      var threadKey = state.activeOrderThreadKey ||
+        ThreadSystem.createThreadKeyFromOrder(order);
+      
+      if (!threadKey) {
+        showToast('Cannot determine conversation thread', 'error');
+        return;
+      }
+      
+      var messageText = input.value.trim();
+      this.disabled = true;
+      var originalHTML = this.innerHTML;
+      this.innerHTML = '<i data-lucide="loader-2" class="spin-icon" style="width:16px;height:16px;"></i> Sending...';
+      if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [this] });
+      
+      try {
+        var success = await ThreadSystem.sendReply(threadKey, messageText, order);
+        if (success) {
+          input.value = '';
+          showToast('Reply sent successfully!', 'success');
+          // Optionally scroll to bottom
+          var messagesContainer = document.getElementById('odThreadMessages');
+          if (messagesContainer) {
+            setTimeout(function() {
+              messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 100);
+          }
+        } else {
+          showToast('Failed to send reply. Please try again.', 'error');
+        }
+      } catch (err) {
+        console.error('Reply send error:', err);
+        showToast('Failed to send reply: ' + (err.message || 'Unknown error'), 'error');
+      } finally {
+        this.disabled = false;
+        this.innerHTML = originalHTML;
+        if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [this] });
+        input.focus();
+      }
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+  var delOrderCancel = document.getElementById('delOrderCancel');
+  if (delOrderCancel) {
+    delOrderCancel.addEventListener('click', function(e) {
+      e.preventDefault();
+      closeDeleteOrderModal();
+    });
+  }
+  
+  var deleteOrderModal = document.getElementById('deleteOrderModal');
+  if (deleteOrderModal) {
+    deleteOrderModal.addEventListener('click', function(e) {
+      if (e.target === this) closeDeleteOrderModal();
+    });
+  }
+  
+  var delOrderConfirm = document.getElementById('delOrderConfirm');
+  if (delOrderConfirm) {
+    delOrderConfirm.addEventListener('click', async function() {
+      if (!state.orderDeleteId) {
+        showToast('No order selected', 'error');
+        closeDeleteOrderModal();
+        return;
+      }
+      if (!state.userOrdersRef) {
+        showToast('Not connected to database', 'error');
+        closeDeleteOrderModal();
+        return;
+      }
+      if (!auth.currentUser) {
+        showToast('You must be signed in', 'error');
+        closeDeleteOrderModal();
+        return;
+      }
+      
+      var btn = this;
+      var deleteId = state.orderDeleteId;
+      
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+      
+      try {
+        await state.userOrdersRef.child(deleteId).remove();
+        state.allOrders = state.allOrders.filter(function(o) { return o.id !== deleteId; });
+        state.filteredOrders = state.filteredOrders.filter(function(o) { return o.id !== deleteId; });
+        closeDeleteOrderModal();
+        closeOrderDetail();
+        updateOrderStats();
+        renderOrdersGrid();
+        showToast('Order deleted', 'success');
+      } catch (err) {
+        console.error('Delete error:', err);
+        if (err.code === 'PERMISSION_DENIED') {
+          showToast('Permission denied. Check database rules.', 'error');
+        } else {
+          showToast('Delete failed: ' + (err.message || 'Unknown error'), 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Delete Order';
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+      }
+    });
+  }
+  
+  var odDetailDel = document.getElementById('odDetailDel');
+  if (odDetailDel) {
+    odDetailDel.addEventListener('click', function() {
+      if (state.orderDetailId) openDeleteOrderModal(state.orderDetailId);
+    });
+  }
+});
+  // Also allow Enter key to send (Shift+Enter for new line)
+  var threadReplyInput = document.getElementById('threadReplyInput');
+  if (threadReplyInput) {
+    threadReplyInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        var btn = document.getElementById('threadReplyBtn');
+        if (btn && !btn.disabled) {
+          btn.click();
+        }
+      }
+    });
   }
 });
 
@@ -1809,22 +2310,91 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /* ==============================================
-   ORDERS
+   ORDERS (Updated with Thread Integration)
    ============================================== */
 function attachOrdersListener() {
   if (state.listenersAttached.orders || !state.userOrdersRef) return;
   state.listenersAttached.orders = true;
-
-  state.userOrdersRef.on('value', function (snap) {
+  
+  state.userOrdersRef.on('value', function(snap) {
     var d = snap.val();
-    state.allOrders = d ? Object.keys(d).map(function (k) { return Object.assign({ id: k }, d[k]); }) : [];
-    state.allOrders.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    state.allOrders = d ? Object.keys(d).map(function(k) { return Object.assign({ id: k }, d[k]); }) : [];
+    state.allOrders.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    
+    // ENRICH ORDER IMAGES FROM ARTWORKS DATA
+    enrichOrderImages();
+    
     updateOrderStats();
     applyOrderFilter();
-  }, function (err) {
+    updateThreadUnreadBadge();
+  }, function(err) {
     console.error('Orders error:', err);
     showToast('Failed to load orders', 'error');
   });
+}
+
+/* ==============================================
+   ENRICH ORDER IMAGES
+   Fetches artwork images for orders that don't have them
+   ============================================== */
+function enrichOrderImages() {
+  if (!state.allArtworks || state.allArtworks.length === 0) return;
+  
+  state.allOrders.forEach(function(order) {
+    if (order.artworkImage) return; // Already has image
+    
+    var localId = order.artworkId;
+    if (!localId) return;
+    
+    // Handle format: "userId:localArtworkId"
+    if (localId.includes(':')) {
+      localId = localId.split(':')[1];
+    }
+    
+    // Find artwork in allArtworks
+    var artwork = state.allArtworks.find(function(a) { return a.id === localId; });
+    
+    if (artwork) {
+      var images = getArtworkImages(artwork);
+      if (images.length > 0) {
+        order.artworkImage = images[0];
+        
+        // Persist to Firebase so we don't fetch again
+        if (state.userOrdersRef) {
+          state.userOrdersRef.child(order.id + '/artworkImage').set(images[0]).catch(function() {});
+        }
+      }
+    }
+  });
+}
+
+/* Update unread badge for thread-based orders */
+async function updateThreadUnreadBadge() {
+  try {
+    var count = await ThreadSystem.getUnreadThreadCount();
+    var existingBadge = document.getElementById('threadUnreadBadge');
+    if (!existingBadge) {
+      var msgsHeader = document.querySelector('.admin-msgs-header');
+      if (msgsHeader) {
+        var h3 = msgsHeader.querySelector('h3');
+        if (h3) {
+          existingBadge = document.createElement('span');
+          existingBadge.id = 'threadUnreadBadge';
+          existingBadge.className = 'admin-unread-badge hidden';
+          existingBadge.style.marginLeft = '0.5rem';
+          h3.appendChild(existingBadge);
+        }
+      }
+    }
+    if (existingBadge) {
+      if (count > 0) {
+        existingBadge.textContent = count > 99 ? '99+' : count;
+        existingBadge.classList.remove('hidden');
+      } else {
+        existingBadge.classList.add('hidden');
+      }
+    }
+  } catch (e) { /* silent */ }
 }
 
 function updateOrderStats() {
@@ -1868,8 +2438,24 @@ function updateOrderFilterCounts() {
   });
 }
 
-function orderStatusDotCls(s) { return s === 'completed' ? 's-completed' : s === 'contacted' ? 's-contacted' : 's-pending'; }
-function orderStatusBadgeCls(s) { return s === 'completed' ? 'bd' : s === 'contacted' ? 'bc' : 'bp'; }
+function orderStatusDotCls(s) {
+  /* Handle new thread statuses */
+  if (s === 'accepted') return 's-completed';
+  if (s === 'rejected') return 's-pending';
+  return s === 'completed' ? 's-completed' : s === 'contacted' ? 's-contacted' : 's-pending';
+}
+
+function orderStatusBadgeCls(s) {
+  if (s === 'accepted') return 'bd';
+  if (s === 'rejected') return 'bp';
+  return s === 'completed' ? 'bd' : s === 'contacted' ? 'bc' : 'bp';
+}
+
+function orderStatusLabel(s) {
+  if (s === 'accepted') return 'Accepted';
+  if (s === 'rejected') return 'Rejected';
+  return (s || 'pending').charAt(0).toUpperCase() + (s || 'pending').slice(1);
+}
 
 function renderOrdersGrid() {
   var grid = document.getElementById('odGrid');
@@ -1882,9 +2468,10 @@ function renderOrdersGrid() {
 
   grid.innerHTML = state.filteredOrders.map(function (o) {
     var isNew = o.viewed === false;
+    var hasThread = !!o.threadKey;
     var st = o.status || 'pending';
-    var stLabel = st.charAt(0).toUpperCase() + st.slice(1);
-    return '<div class="order-card' + (isNew ? ' is-new' : '') + '" data-oid="' + o.id + '">' +
+    var stLabel = orderStatusLabel(st);
+    return '<div class="order-card' + (isNew ? ' is-new' : '') + (hasThread ? ' has-thread' : '') + '" data-oid="' + o.id + '" data-thread-key="' + escapeHtml(o.threadKey || '') + '">' +
       '<div class="oc-top">' +
         '<img src="' + escapeHtml(o.artworkImage || '') + '" alt="" class="oc-img" loading="lazy" onerror="this.src=\'' + fallback + '\'">' +
         '<div class="oc-info">' +
@@ -1893,6 +2480,7 @@ function renderOrdersGrid() {
           '<div class="oc-row">' +
             '<span class="oc-price">' + formatPrice(o.artworkPrice, o.artworkCurrency) + '</span>' +
             '<span class="oc-status ' + orderStatusDotCls(st) + '"><span class="dot"></span>' + stLabel + '</span>' +
+            (hasThread ? '<span class="oc-thread-badge" title="Has conversation"><i data-lucide="message-circle" style="width:13px;height:13px;"></i></span>' : '') +
             '<span class="oc-date">' + formatRelativeDate(o.createdAt) + '</span>' +
           '</div></div></div>' +
       '<div class="oc-bottom">' +
@@ -1915,7 +2503,7 @@ document.addEventListener('DOMContentLoaded', function() {
     odGrid.addEventListener('click', function (e) {
       var card = e.target.closest('.order-card');
       if (card && !e.target.closest('.jOrdCont') && !e.target.closest('.jOrdDone') && !e.target.closest('.jOrdDel')) {
-        openOrderDetail(card.dataset.oid);
+        openOrderDetail(card.dataset.oid, card.dataset.threadKey);
       }
       var contBtn = e.target.closest('.jOrdCont');
       if (contBtn && state.userOrdersRef) {
@@ -1965,7 +2553,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (odMarkContacted) {
     odMarkContacted.addEventListener('click', function () {
       if (!state.orderDetailId || !state.userOrdersRef) return;
-      state.userOrdersRef.child(state.orderDetailId + '/status').set('contacted').then(function () { closeOrderDetail(); showToast('Marked as contacted', 'success'); }).catch(function () { showToast('Failed', 'error'); });
+      state.userOrdersRef.child(state.orderDetailId + '/status').set('contacted').then(function () { showToast('Marked as contacted', 'success'); }).catch(function () { showToast('Failed', 'error'); });
     });
   }
 
@@ -1973,42 +2561,70 @@ document.addEventListener('DOMContentLoaded', function() {
   if (odMarkDone) {
     odMarkDone.addEventListener('click', function () {
       if (!state.orderDetailId || !state.userOrdersRef) return;
-      state.userOrdersRef.child(state.orderDetailId + '/status').set('completed').then(function () { closeOrderDetail(); showToast('Marked as done', 'success'); }).catch(function () { showToast('Failed', 'error'); });
+      state.userOrdersRef.child(state.orderDetailId + '/status').set('completed').then(function () { showToast('Marked as done', 'success'); }).catch(function () { showToast('Failed', 'error'); });
     });
   }
 
-  var odDetailDel = document.getElementById('odDetailDel');
-  if (odDetailDel) {
-    odDetailDel.addEventListener('click', function () { if (state.orderDetailId) openDeleteOrderModal(state.orderDetailId); });
+ 
+
+ 
+
+
+
+  /* Thread accept/reject handlers */
+  var threadAcceptBtn = document.getElementById('threadAcceptBtn');
+  if (threadAcceptBtn) {
+    threadAcceptBtn.addEventListener('click', async function () {
+      if (!state.activeOrderThreadKey) return;
+      this.disabled = true;
+      this.textContent = 'Accepting...';
+      try {
+        await ThreadSystem.updateStatus(state.activeOrderThreadKey, 'accepted');
+        showToast('Order accepted!', 'success');
+      } catch (err) {
+        showToast('Failed to update', 'error');
+      }
+      this.disabled = false;
+      this.textContent = 'Accept Order';
+    });
   }
 
-  var delOrderCancel = document.getElementById('delOrderCancel');
-  if (delOrderCancel) delOrderCancel.addEventListener('click', closeDeleteOrderModal);
-  
-  var deleteOrderModal = document.getElementById('deleteOrderModal');
-  if (deleteOrderModal) {
-    deleteOrderModal.addEventListener('click', function (e) { if (e.target === this) closeDeleteOrderModal(); });
-  }
-
-  var delOrderConfirm = document.getElementById('delOrderConfirm');
-  if (delOrderConfirm) {
-    delOrderConfirm.addEventListener('click', async function () {
-      if (!state.orderDeleteId || !state.userOrdersRef) return;
-      var btn = this; setLoading(btn, true);
-      try { await state.userOrdersRef.child(state.orderDeleteId).remove(); closeDeleteOrderModal(); closeOrderDetail(); showToast('Order deleted', 'success'); }
-      catch (e) { showToast('Delete failed.', 'error'); }
-      finally { setLoading(btn, false); }
+  var threadRejectBtn = document.getElementById('threadRejectBtn');
+  if (threadRejectBtn) {
+    threadRejectBtn.addEventListener('click', async function () {
+      if (!state.activeOrderThreadKey) return;
+      this.disabled = true;
+      this.textContent = 'Rejecting...';
+      try {
+        await ThreadSystem.updateStatus(state.activeOrderThreadKey, 'rejected');
+        showToast('Order rejected', 'info');
+      } catch (err) {
+        showToast('Failed to update', 'error');
+      }
+      this.disabled = false;
+      this.textContent = 'Reject Order';
     });
   }
 });
 
-function openOrderDetail(id) {
+/* ==============================================
+   ORDER DETAIL (Updated with Thread Messages)
+   ============================================== */
+function openOrderDetail(id, threadKey) {
   var o = state.allOrders.find(function (x) { return x.id === id; });
   if (!o) return;
   state.orderDetailId = id;
+  state.activeOrderThreadKey = threadKey || o.threadKey || null;
+
   if (o.viewed === false && state.userOrdersRef) {
     state.userOrdersRef.child(id + '/viewed').set(true).catch(function () {});
   }
+
+  /* Mark thread as read if exists */
+  if (state.activeOrderThreadKey) {
+    ThreadSystem.markThreadRead(state.activeOrderThreadKey).catch(function () {});
+  }
+
   var modal = document.getElementById('orderDetailModal');
   if (!modal) return;
   
@@ -2034,16 +2650,19 @@ function openOrderDetail(id) {
   if (odArtPrice) odArtPrice.textContent = formatPrice(o.artworkPrice, o.artworkCurrency);
   if (odArtCat) odArtCat.textContent = o.artworkCategory || '';
   if (odMsg) odMsg.textContent = o.message || 'No message from client.';
+
   var st = o.status || 'pending';
   var badge = document.getElementById('odStatus');
   if (badge) {
-    badge.textContent = st.charAt(0).toUpperCase() + st.slice(1);
+    badge.textContent = orderStatusLabel(st);
     badge.className = 'order-det-badge ' + orderStatusBadgeCls(st);
   }
+
   var markCont = document.getElementById('odMarkContacted');
   var markDone = document.getElementById('odMarkDone');
   if (markCont) markCont.style.display = st === 'pending' ? 'inline-flex' : 'none';
   if (markDone) markDone.style.display = st === 'contacted' ? 'inline-flex' : 'none';
+
   var rawPhone = (o.clientPhone || '').trim();
   var digits = rawPhone.replace(/\D/g, '');
   var cleanPhone = digits;
@@ -2061,22 +2680,142 @@ function openOrderDetail(id) {
     emlLink.href = 'mailto:' + rawEmail + '?subject=' + encodeURIComponent('Re: Your interest in "' + (o.artworkTitle || '') + '" — Afro Gallero') + '&body=' + encodeURIComponent('Hi ' + (o.clientName || '') + ',\n\nThank you for your interest in "' + (o.artworkTitle || '') + '" on Afro Gallero.\n\n' + (o.message ? 'Your message:\n"' + o.message.substring(0, 200) + '"\n\n' : '') + 'Best regards');
     emlLink.style.display = 'inline-flex';
   } else if(emlLink) { emlLink.style.display = 'none'; }
+
+  /* Handle thread section */
+  /* Handle thread section */
+  var threadSection = document.getElementById('odThreadSection');
+  if (threadSection) {
+    threadSection.style.display = 'block';
+    
+    if (state.activeOrderThreadKey) {
+      loadOrderThread(state.activeOrderThreadKey);
+      /* Hide legacy status buttons for thread orders - use thread buttons instead */
+      if (markCont) markCont.style.display = 'none';
+      if (markDone) markDone.style.display = 'none';
+    } else {
+      // Show conversation starter even without threadKey
+      var messagesContainer = document.getElementById('odThreadMessages');
+      if (messagesContainer) {
+        messagesContainer.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.9rem;">' +
+          '<i data-lucide="message-circle" style="width:32px;height:32px;display:block;margin:0 auto 0.75rem;opacity:0.5;"></i>' +
+          'Send a message to start a conversation with this client.</div>';
+        if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [messagesContainer] });
+      }
+      var statusActions = document.getElementById('odThreadStatusActions');
+      if (statusActions) statusActions.style.display = 'none';
+      var replyForm = document.getElementById('threadReplyForm');
+      if (replyForm) replyForm.style.display = 'flex';
+    }
+  }
+
   if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [modal] });
   modal.classList.add('open');
 }
 
-function closeOrderDetail() { var m = document.getElementById('orderDetailModal'); if (m) m.classList.remove('open'); state.orderDetailId = null; }
+/* Load and display thread messages */
+function loadOrderThread(threadKey) {
+  var messagesContainer = document.getElementById('odThreadMessages');
+  var statusActions = document.getElementById('odThreadStatusActions');
+  var replyForm = document.getElementById('odThreadReplyForm');
 
-function openDeleteOrderModal(id) {
-  var o = state.allOrders.find(function (x) { return x.id === id; });
-  state.orderDeleteId = id;
-  var textEl = document.getElementById('delOrderText');
-  if (textEl) textEl.textContent = 'Order from "' + (o ? o.clientName : 'Unknown') + '" will be permanently removed.';
-  var modal = document.getElementById('deleteOrderModal');
-  if (modal) modal.classList.add('open');
+  if (!messagesContainer) return;
+  messagesContainer.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--muted);"><div class="spinner" style="margin:0 auto 0.5rem;"></div>Loading conversation...</div>';
+
+  ThreadSystem.loadThread(threadKey, function (data) {
+    state.threadInfo = data.info;
+    state.threadMessages = data.messages;
+
+    if (!data.info) {
+      messagesContainer.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--muted);">Thread not found</div>';
+      if (statusActions) statusActions.style.display = 'none';
+      if (replyForm) replyForm.style.display = 'none';
+      return;
+    }
+
+    /* Update status display */
+    var threadStatusEl = document.getElementById('odThreadStatus');
+    if (threadStatusEl && data.info.orderStatus) {
+      threadStatusEl.textContent = orderStatusLabel(data.info.orderStatus);
+      threadStatusEl.className = 'order-det-badge ' + orderStatusBadgeCls(data.info.orderStatus);
+      /* Also update main badge */
+      var mainBadge = document.getElementById('odStatus');
+      if (mainBadge) {
+        mainBadge.textContent = orderStatusLabel(data.info.orderStatus);
+        mainBadge.className = 'order-det-badge ' + orderStatusBadgeCls(data.info.orderStatus);
+      }
+    }
+
+    /* Show/hide accept/reject buttons based on status */
+    if (statusActions) {
+      var threadStatus = data.info.orderStatus || 'pending';
+      if (threadStatus === 'pending') {
+        statusActions.style.display = 'flex';
+      } else {
+        statusActions.style.display = 'none';
+      }
+    }
+
+    if (replyForm) replyForm.style.display = 'flex';
+
+    /* Render messages */
+    if (data.messages.length === 0) {
+      messagesContainer.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:0.9rem;">No messages yet. Send a reply to start the conversation.</div>';
+      return;
+    }
+
+    var myEmail = auth.currentUser ? auth.currentUser.email : '';
+    var html = '';
+
+    data.messages.forEach(function (msg) {
+      /* Status change message */
+      if (msg.type === 'status_change') {
+        var statusColor = msg.newStatus === 'accepted' ? '#22c55e' : '#dc2626';
+        var statusIcon = msg.newStatus === 'accepted' ? '✓' : '✗';
+        html += '<div class="thread-status-msg" style="text-align:center;padding:0.4rem 1rem;border-radius:9999px;background:var(--bg-secondary);color:' + statusColor + ';font-size:0.82rem;font-weight:600;">' + statusIcon + ' ' + escapeHtml(msg.text) + '</div>';
+        return;
+      }
+
+      var isSent = msg.senderEmail === myEmail;
+      var bubbleCls = isSent ? 'thread-bubble-sent' : 'thread-bubble-received';
+      if (msg.type === 'order' && !isSent) bubbleCls = 'thread-bubble-order';
+
+      html += '<div class="thread-bubble ' + bubbleCls + '">';
+      html += '<div class="thread-bubble-sender">' + escapeHtml(msg.senderName || 'Unknown') + '</div>';
+      html += '<div class="thread-bubble-text">' + escapeHtml(msg.text || '') + '</div>';
+
+      /* Show order details for order-type messages */
+      if (msg.type === 'order' && msg.orderPhone) {
+        html += '<div class="thread-bubble-details"><strong>Phone:</strong> ' + escapeHtml(msg.orderPhone) + '</div>';
+      }
+
+      html += '<div class="thread-bubble-time">' + ThreadSystem.formatMsgTime(msg.createdAt) + '</div>';
+      html += '</div>';
+    });
+
+    messagesContainer.innerHTML = html;
+
+    /* Scroll to bottom */
+    requestAnimationFrame(function () {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+  });
 }
 
-function closeDeleteOrderModal() { var m = document.getElementById('deleteOrderModal'); if (m) m.classList.remove('open'); state.orderDeleteId = null; }
+function closeOrderDetail() {
+  var m = document.getElementById('orderDetailModal');
+  if (m) m.classList.remove('open');
+  state.orderDetailId = null;
+  ThreadSystem.detachThreadListener();
+  state.activeOrderThreadKey = null;
+  state.threadMessages = [];
+  state.threadInfo = null;
+
+  /* Clear thread UI */
+  var messagesContainer = document.getElementById('odThreadMessages');
+  if (messagesContainer) messagesContainer.innerHTML = '';
+}
+
+
 
 /* ==============================================
    PUBLIC APIs
@@ -2110,15 +2849,36 @@ window.getGalleryTheme = function (ownerId) {
   return db.ref('user_information/' + ownerId + '/galleryTheme').once('value').then(function (snap) { return snap.val(); }).catch(function () { return null; });
 };
 
-window.submitArtworkOrder = function (artwork, client) {
+window.submitArtworkOrder = function(artwork, client) {
   var ownerUid = artwork.ownerId;
   if (!ownerUid) return Promise.resolve({ success: false, error: 'No owner specified in artwork data.' });
-  return db.ref('user_information/' + ownerUid + '/orders').push().set({
-    clientName: client.clientName || 'Unknown', clientEmail: client.clientEmail || '', clientPhone: client.clientPhone || '', message: client.message || '',
-    artworkTitle: artwork.artworkTitle || '', artworkImage: artwork.artworkImage || '', artworkPrice: artwork.artworkPrice || 0,
-    artworkCurrency: artwork.artworkCurrency || 'UGX', artworkCategory: artwork.artworkCategory || '', artworkId: artwork.artworkId || '',
-    status: 'pending', viewed: false, createdAt: Date.now()
-  }).then(function () { return { success: true }; }).catch(function (e) { return { success: false, error: e.message }; });
+  
+  /* Generate thread key for the message system */
+  var buyerEmail = client.clientEmail || '';
+  var artistEmail = artwork.artistEmail || '';
+  var artworkId = artwork.artworkId || '';
+  var threadKey = artistEmail ? ThreadSystem.makeThreadKey(buyerEmail, artistEmail, artworkId) : null;
+  
+  var orderData = {
+    clientName: client.clientName || 'Unknown',
+    clientEmail: client.clientEmail || '',
+    clientPhone: client.clientPhone || '',
+    message: client.message || '',
+    artworkTitle: artwork.artworkTitle || '',
+    artworkImage: artwork.artworkImage || '',
+    artworkPrice: artwork.artworkPrice || 0,
+    artworkCurrency: artwork.artworkCurrency || 'UGX',
+    artworkCategory: artwork.artworkCategory || '',
+    artworkId: artworkId,
+    status: 'pending',
+    viewed: false,
+    threadKey: threadKey,
+    createdAt: Date.now()
+  };
+  
+  return db.ref('user_information/' + ownerUid + '/orders').push().set(orderData)
+    .then(function() { return { success: true, threadKey: threadKey }; })
+    .catch(function(e) { return { success: false, error: e.message }; });
 };
 
 window.submitContactMessage = function (ownerId, messageData) {
@@ -2387,7 +3147,34 @@ async function handleAboutImage(file) {
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
 
+/* ==============================================
+   ORDER DELETE FUNCTIONS — MUST BE GLOBAL
+   ============================================== */
+function openDeleteOrderModal(id) {
+  var o = state.allOrders.find(function(x) { return x.id === id; });
+  if (!o) {
+    showToast('Order not found', 'error');
+    return;
+  }
+  state.orderDeleteId = id;
+  var textEl = document.getElementById('delOrderText');
+  if (textEl) textEl.textContent = 'Order from "' + (o.clientName || 'Unknown') + '" will be permanently removed.';
+  var modal = document.getElementById('deleteOrderModal');
+  if (modal) modal.classList.add('open');
+}
 
+function closeDeleteOrderModal() {
+  var m = document.getElementById('deleteOrderModal');
+  if (m) m.classList.remove('open');
+  var btn = document.getElementById('delOrderConfirm');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Delete Order';
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+  }
+  state.orderDeleteId = null;
+}
 
 /* ==============================================
    INIT
