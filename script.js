@@ -771,6 +771,7 @@ function navigateTo(page) {
   if (page === 'price-database') loadPriceDatabase(document.getElementById('pdCurrencyFilter')?.value || 'UGX');
   if (page === 'artists') renderArtistProfiles(true);
   if (page === 'messages') MessageInbox.renderInbox();
+  if (page === 'fairs-events') FairsEvents.load();
   }
 
 function handleHash() {
@@ -3828,6 +3829,506 @@ const MessageInbox = (function () {
 }();
 
 /* ============================================
+   FAIRS & EVENTS SYSTEM
+   Reads from user_information/events
+   Field names match admin: eventDate, eventTime, etc.
+   Comments stored under each event node
+   /*============================================ */
+var FairsEvents = (function () {
+  var currentEventSource = null;
+  var currentEventId = null;
+  var commentsListenerRef = null;
+
+  /* --- Helpers --- */
+  function formatEventDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+      var d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+    } catch (e) { return dateStr; }
+  }
+
+  function getDateBadgeParts(dateStr) {
+    if (!dateStr) return { month: '', day: '' };
+    try {
+      var d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return { month: '', day: '' };
+      return {
+        month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+        day: d.getDate().toString()
+      };
+    } catch (e) { return { month: '', day: '' }; }
+  }
+
+  function getYearFromDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+      var d = new Date(dateStr + 'T00:00:00');
+      return isNaN(d.getTime()) ? '' : d.getFullYear().toString();
+    } catch (e) { return ''; }
+  }
+
+  function formatCommentTime(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var now = new Date();
+    var diff = now - d;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diff < 604800000) return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getInitials(name) {
+    if (!name) return '?';
+    return name.split(' ').map(function (w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
+  }
+
+  function stringToColor(str) {
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+    var hue = Math.abs(hash) % 360;
+    return 'hsl(' + hue + ', 55%, 45%)';
+  }
+
+  /* ===========================
+     MAP RAW FIELDS → CONSISTENT KEYS
+     Admin saves: eventDate, eventTime, image, title,
+     description, location, createdAt
+     =========================== */
+  function mapEventFields(raw, compositeId) {
+    var mapped = {
+      id: compositeId,
+      title: raw.title || '',
+      description: raw.description || raw.desc || '',
+      image: raw.image || raw.eventImage || raw.poster || raw.cover || raw.photo || '',
+      date: raw.eventDate || raw.date || '',
+      time: raw.eventTime || raw.time || '',
+      year: raw.year || '',
+      location: raw.location || raw.venue || '',
+      artistName: raw.artistName || raw.artist || raw.organizer || '',
+      createdAt: raw.createdAt || 0,
+      _source: raw._source || null
+    };
+
+    /* Extract year from date if missing */
+    if (!mapped.year && mapped.date) { mapped.year = getYearFromDate(mapped.date); }
+
+    /* Fallback: scan all fields for an image URL */
+    if (!mapped.image) {
+      var allKeys = Object.keys(raw);
+      for (var j = 0; j < allKeys.length; j++) {
+        var v = raw[allKeys[j]];
+        if (typeof v === 'string' && v.startsWith('http') &&
+          (v.includes('.jpg') || v.includes('.jpeg') || v.includes('.png') || v.includes('.webp') ||
+           v.includes('.gif') || v.includes('imagekit') || v.includes('imgbb') || v.includes('firebase'))) {
+          mapped.image = v;
+          break;
+        }
+      }
+    }
+
+    return mapped;
+  }
+
+  /* ===========================
+     LOAD EVENTS GRID
+     Uses fetchFromUserInformation — same as artworks/auctions
+     =========================== */
+  function loadFairsEvents() {
+    var grid = document.getElementById('eventsGrid');
+    var empty = document.getElementById('eventsEmpty');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    if (empty) empty.style.display = 'none';
+
+    if (typeof fetchFromUserInformation !== 'function') {
+      if (empty) empty.style.display = '';
+      return;
+    }
+
+    fetchFromUserInformation('events', true).then(function (allEvts) {
+      if (!Array.isArray(allEvts)) {
+        if (empty) empty.style.display = '';
+        return;
+      }
+
+      /* Map raw fields to consistent keys */
+      var validItems = [];
+      for (var i = 0; i < allEvts.length; i++) {
+        var mapped = mapEventFields(allEvts[i], allEvts[i].id);
+        if (mapped.title) validItems.push(mapped);
+      }
+
+      if (validItems.length === 0) {
+        if (empty) empty.style.display = '';
+        return;
+      }
+
+      /* Sort: upcoming first, then past */
+      validItems.sort(function (a, b) {
+        var dateA = new Date(a.date || 0).getTime();
+        var dateB = new Date(b.date || 0).getTime();
+        var now = Date.now();
+        var aUp = dateA >= now ? 0 : 1;
+        var bUp = dateB >= now ? 0 : 1;
+        if (aUp !== bUp) return aUp - bUp;
+        return dateA - dateB;
+      });
+
+      var fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='220'%3E%3Crect fill='%23e9ecef' width='320' height='220'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23adb5bd' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
+
+      grid.innerHTML = validItems.map(function (ev) {
+        var badge = getDateBadgeParts(ev.date);
+        var dateFormatted = formatEventDate(ev.date);
+        var seedId = (ev.id || 'x').replace(/[^a-zA-Z0-9_-]/g, '-');
+        var imgSrc = ev.image || fallback;
+        var isPast = ev.date && new Date(ev.date).getTime() < Date.now();
+
+        /* Count comments from raw data */
+        var commentCount = 0;
+        var rawEv = allEvts.find(function (r) { return r.id === ev.id; });
+        if (rawEv && rawEv.comments && typeof rawEv.comments === 'object') {
+          commentCount = Object.keys(rawEv.comments).length;
+        }
+
+        return '<div class="ev-card reveal' + (isPast ? ' ev-card-past' : '') + '" data-event-id="' + escapeHtml(ev.id) + '" data-event-source="' + escapeHtml(ev._source || '') + '" tabindex="0" role="button" aria-label="View ' + escapeHtml(ev.title) + '">'
+          + '<div class="ev-card-image-wrap">'
+          + '<img src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(ev.title) + '" loading="lazy" decoding="async" onerror="this.src=\'' + fallback + '\'">'
+          + (badge.month ? '<div class="ev-card-date-badge"><span class="ev-card-badge-month">' + escapeHtml(badge.month) + '</span><span class="ev-card-badge-day">' + escapeHtml(badge.day) + '</span></div>' : '')
+          + (isPast ? '<span class="ev-card-past-badge">Past</span>' : '')
+          + '</div>'
+          + '<div class="ev-card-body">'
+          + '<h3 class="ev-card-title">' + escapeHtml(ev.title) + '</h3>'
+          + '<div class="ev-card-info">'
+          + (dateFormatted ? '<span class="ev-card-info-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ' + escapeHtml(dateFormatted) + '</span>' : '')
+          + (ev.time ? '<span class="ev-card-info-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ' + escapeHtml(ev.time) + '</span>' : '')
+          + (ev.location ? '<span class="ev-card-info-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ' + escapeHtml(ev.location) + '</span>' : '')
+          + '</div>'
+          + (ev.description ? '<p class="ev-card-desc">' + escapeHtml(ev.description.length > 120 ? ev.description.substring(0, 120) + '...' : ev.description) + '</p>' : '')
+          + '<div class="ev-card-footer">'
+          + '<span class="ev-card-comments-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ' + commentCount + ' comment' + (commentCount !== 1 ? 's' : '') + '</span>'
+          + '<span style="font-size:0.75rem;color:var(--primary);font-weight:600;">View Details &rarr;</span>'
+          + '</div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+
+      /* Attach click listeners */
+      grid.querySelectorAll('.ev-card').forEach(function (card) {
+        var handler = function () { openEventDetail(card.dataset.eventId, card.dataset.eventSource); };
+        card.addEventListener('click', handler);
+        card.addEventListener('keydown', function (e) { if (e.key === 'Enter') handler(); });
+      });
+
+      setTimeout(initRevealAnimations, 100);
+    }).catch(function (err) {
+      console.warn('Failed to load events:', err);
+      if (empty) empty.style.display = '';
+    });
+  }
+
+  /* ===========================
+     OPEN EVENT DETAIL MODAL
+     =========================== */
+  function openEventDetail(compositeId, sourceUserId) {
+    currentEventId = compositeId;
+    currentEventSource = sourceUserId || null;
+
+    var modal = document.getElementById('eventDetailModal');
+    if (!modal || !authDb || !compositeId) return;
+
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    /* Reset */
+    document.getElementById('evCommentsList').innerHTML = '';
+    document.getElementById('evCommentCount').textContent = '0';
+    document.getElementById('evCommentError').style.display = 'none';
+
+    /*
+     * fetchFromUserInformation returns id as "userId:eventPushKey"
+     * We need to strip the userId prefix to get the raw Firebase event key
+     * so we can read from: user_information/{userId}/events/{eventPushKey}
+     */
+    var rawEventId = compositeId;
+    if (sourceUserId && compositeId.startsWith(sourceUserId + ':')) {
+      rawEventId = compositeId.substring(sourceUserId.length + 1);
+    }
+
+    var evRef = authDb.ref('user_information/' + sourceUserId + '/events/' + rawEventId);
+
+    evRef.once('value').then(function (snap) {
+      var raw = snap.val();
+      if (!raw) {
+        closeModal();
+        showToast('Event not found', 'error');
+        return;
+      }
+
+      /* Map fields through the same mapper */
+      var ev = mapEventFields(raw, compositeId);
+
+      populateModal(ev);
+      attachCommentsListener(sourceUserId, rawEventId);
+      setupCommentForm(sourceUserId, rawEventId);
+    }).catch(function (err) {
+      console.warn('Failed to load event detail:', err);
+      closeModal();
+    });
+  }
+
+  /* ===========================
+     POPULATE MODAL FIELDS
+     =========================== */
+  function populateModal(ev) {
+    var img = document.getElementById('evImage');
+    var imgWrap = document.getElementById('evImageWrap');
+    var title = document.getElementById('evTitle');
+    var dateText = document.getElementById('evDateText');
+    var timeText = document.getElementById('evTimeText');
+    var yearText = document.getElementById('evYearText');
+    var locationEl = document.getElementById('evLocation');
+    var descriptionEl = document.getElementById('evDescription');
+    var badgeMonth = document.getElementById('evBadgeMonth');
+    var badgeDay = document.getElementById('evBadgeDay');
+    var dateBadge = document.getElementById('evDateBadge');
+
+    var fallback = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='360'%3E%3Crect fill='%23e9ecef' width='600' height='360'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' fill='%23adb5bd' font-size='16'%3ENo Image%3C/text%3E%3C/svg%3E";
+    var imgSrc = ev.image || fallback;
+    img.src = imgSrc;
+    img.alt = ev.title || '';
+    img.onerror = function () { this.src = fallback; };
+
+    title.textContent = ev.title || '';
+
+    var dateFormatted = formatEventDate(ev.date);
+    dateText.querySelector('span').textContent = dateFormatted || 'TBD';
+    dateText.style.display = dateFormatted ? '' : 'none';
+
+    timeText.querySelector('span').textContent = ev.time || '';
+    timeText.style.display = ev.time ? '' : 'none';
+
+    var year = ev.year || getYearFromDate(ev.date);
+    yearText.querySelector('span').textContent = year ? 'Year ' + year : '';
+    yearText.style.display = year ? '' : 'none';
+
+    locationEl.querySelector('span').textContent = ev.location || '';
+    locationEl.style.display = ev.location ? '' : 'none';
+
+    descriptionEl.textContent = ev.description || '';
+
+    var badge = getDateBadgeParts(ev.date);
+    if (badge.month && badge.day) {
+      badgeMonth.textContent = badge.month;
+      badgeDay.textContent = badge.day;
+      dateBadge.style.display = '';
+    } else {
+      dateBadge.style.display = 'none';
+    }
+
+    imgWrap.style.display = '';
+  }
+
+  /* ===========================
+     COMMENTS: REAL-TIME LISTENER
+     Path: user_information/{userId}/events/{eventId}/comments
+     =========================== */
+  function attachCommentsListener(sourceUserId, rawEventId) {
+    detachCommentsListener();
+    var path = 'user_information/' + sourceUserId + '/events/' + rawEventId + '/comments';
+    commentsListenerRef = authDb.ref(path);
+    commentsListenerRef.on('value', function (snap) {
+      renderComments(snap.val());
+    });
+  }
+
+  function detachCommentsListener() {
+    if (commentsListenerRef) {
+      commentsListenerRef.off('value');
+      commentsListenerRef = null;
+    }
+  }
+
+  /* ===========================
+     RENDER COMMENTS
+     =========================== */
+  function renderComments(comments) {
+    var list = document.getElementById('evCommentsList');
+    var countEl = document.getElementById('evCommentCount');
+    if (!list) return;
+
+    if (!comments || typeof comments !== 'object') {
+      list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.9rem;padding:1rem 0;">No comments yet. Be the first!</div>';
+      if (countEl) countEl.textContent = '0';
+      return;
+    }
+
+    var arr = [];
+    Object.keys(comments).forEach(function (key) {
+      var c = comments[key];
+      if (c) arr.push({ key: key, text: c.text, authorName: c.authorName, authorEmail: c.authorEmail, authorUid: c.authorUid, createdAt: c.createdAt });
+    });
+    arr.sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+
+    if (countEl) countEl.textContent = arr.length;
+
+    if (arr.length === 0) {
+      list.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:.9rem;padding:1rem 0;">No comments yet. Be the first!</div>';
+      return;
+    }
+
+    var myEmail = auth && auth.currentUser ? auth.currentUser.email : null;
+
+    list.innerHTML = arr.map(function (c) {
+      var isMine = myEmail && c.authorEmail === myEmail;
+      var initials = getInitials(c.authorName);
+      var avatarColor = stringToColor(c.authorEmail || c.authorName || 'unknown');
+
+      return '<div class="ev-comment-item">'
+        + '<div class="ev-comment-avatar" style="background:' + avatarColor + ';">' + escapeHtml(initials) + '</div>'
+        + '<div class="ev-comment-body">'
+        + '<div class="ev-comment-name">' + escapeHtml(c.authorName || 'Anonymous') + '</div>'
+        + '<div class="ev-comment-text">' + escapeHtml(c.text || '') + '</div>'
+        + '<div class="ev-comment-time">' + formatCommentTime(c.createdAt) + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  /* ===========================
+     COMMENT FORM SETUP
+     =========================== */
+  function setupCommentForm(sourceUserId, rawEventId) {
+    var authPrompt = document.getElementById('evCommentAuthPrompt');
+    var formWrap = document.getElementById('evCommentFormWrap');
+    var avatarEl = document.getElementById('evCommentAvatar');
+    var loginLink = document.getElementById('evCommentLoginLink');
+
+    if (!auth || !auth.currentUser) {
+      if (authPrompt) authPrompt.style.display = '';
+      if (formWrap) formWrap.style.display = 'none';
+      if (loginLink) {
+        loginLink.onclick = function (e) {
+          e.preventDefault();
+          closeModal();
+          var authModal = document.getElementById('authModal');
+          if (authModal) {
+            authModal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            var loginTab = authModal.querySelector('[data-auth-tab="login"]');
+            if (loginTab) loginTab.click();
+          }
+        };
+      }
+      return;
+    }
+
+    if (authPrompt) authPrompt.style.display = 'none';
+    if (formWrap) formWrap.style.display = '';
+
+    var user = auth.currentUser;
+    var userName = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
+    var avatarColor = stringToColor(user.email || userName);
+
+    if (avatarEl) {
+      avatarEl.style.background = avatarColor;
+      avatarEl.textContent = getInitials(userName);
+    }
+
+    /* Clone inputs to remove stale listeners */
+    var oldInput = document.getElementById('evCommentInput');
+    var oldBtn = document.getElementById('evCommentSendBtn');
+    var newInput = oldInput.cloneNode(true);
+    var newBtn = oldBtn.cloneNode(true);
+    oldInput.parentNode.replaceChild(newInput, oldInput);
+    oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+
+    function submitComment() {
+      var textEl = document.getElementById('evCommentInput');
+      var errDisplay = document.getElementById('evCommentError');
+      var text = textEl ? textEl.value.trim() : '';
+
+      if (!text || text.length < 2) {
+        if (errDisplay) { errDisplay.textContent = 'Please write at least 2 characters.'; errDisplay.style.display = ''; }
+        setTimeout(function () { if (errDisplay) errDisplay.style.display = 'none'; }, 3000);
+        return;
+      }
+
+      var commentData = {
+        text: text,
+        authorName: userName,
+        authorEmail: user.email,
+        authorUid: user.uid,
+        createdAt: Date.now()
+      };
+
+      var path = 'user_information/' + sourceUserId + '/events/' + rawEventId + '/comments';
+      authDb.ref(path).push().set(commentData).then(function () {
+        var el = document.getElementById('evCommentInput');
+        if (el) el.value = '';
+        if (errDisplay) errDisplay.style.display = 'none';
+        SiteAnalytics.trackEvent('event_comment', rawEventId);
+      }).catch(function () {
+        if (errDisplay) { errDisplay.textContent = 'Failed to post comment. Try again.'; errDisplay.style.display = ''; }
+        setTimeout(function () { if (errDisplay) errDisplay.style.display = 'none'; }, 4000);
+      });
+    }
+
+    document.getElementById('evCommentSendBtn').addEventListener('click', submitComment);
+    document.getElementById('evCommentInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); }
+    });
+  }
+
+  /* ===========================
+     CLOSE MODAL
+     =========================== */
+  function closeModal() {
+    var modal = document.getElementById('eventDetailModal');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+    detachCommentsListener();
+    currentEventSource = null;
+    currentEventId = null;
+  }
+
+  /* ===========================
+     INIT LISTENERS
+     =========================== */
+  function initListeners() {
+    var closeBtn = document.getElementById('evClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+    var modal = document.getElementById('eventDetailModal');
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target.id === 'eventDetailModal') closeModal();
+      });
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var m = document.getElementById('eventDetailModal');
+        if (m && m.classList.contains('open')) { closeModal(); e.stopPropagation(); }
+      }
+    });
+  }
+
+  /* ===========================
+     PUBLIC API
+     =========================== */
+  return {
+    load: loadFairsEvents,
+    initListeners: initListeners,
+    closeModal: closeModal
+  };
+})();
+
+/* ============================================
    MASTER INITIALIZATION
    ============================================ */
 async function init() {
@@ -3851,6 +4352,7 @@ async function init() {
   initPriceDatabaseListeners();
   SiteAnalytics.init(authDb);
     MessageInbox.initFilterListeners();
+    FairsEvents.initListeners();
   if (auth && auth.currentUser) {
     MessageInbox.attachUnreadListener();
     MessageInbox.updateMsgBadge();
