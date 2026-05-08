@@ -147,20 +147,22 @@
   }
 
   /* ---------- TRACK IMPRESSION ---------- */
-  function trackImpression(adKey) {
-    if (!db || !adKey) return;
-    db.ref(ADVERTS_NODE + '/' + adKey + '/impressions').transaction(function(current) {
-      return (current || 0) + 1;
-    }).catch(function() {});
-  }
+ function trackImpression(adKey) {
+  if (!db || !adKey) return;
+  // Must match admin path: adverts/ads/{key}/impressions
+  db.ref(ADVERTS_NODE + '/ads/' + adKey + '/impressions').transaction(function(current) {
+    return (current || 0) + 1;
+  }).catch(function() {});
+}
 
   /* ---------- TRACK CLICK ---------- */
-  function trackClick(adKey) {
-    if (!db || !adKey) return;
-    db.ref(ADVERTS_NODE + '/' + adKey + '/clicks').transaction(function(current) {
-      return (current || 0) + 1;
-    }).catch(function() {});
-  }
+ function trackClick(adKey) {
+  if (!db || !adKey) return;
+  // Must match admin path: adverts/ads/{key}/clicks
+  db.ref(ADVERTS_NODE + '/ads/' + adKey + '/clicks').transaction(function(current) {
+    return (current || 0) + 1;
+  }).catch(function() {});
+}
 
   /* ---------- BUILD AD DOM ---------- */
   function buildAdHTML(ad) {
