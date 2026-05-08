@@ -1,14 +1,15 @@
 /* ==============================================
-   ADVERTISEMENT SYSTEM STYLES
+   ADVERTISEMENT SYSTEM STYLES — UPGRADED
+   Fluid responsive + Close button on card
    ============================================== */
 
 /* Overlay Backdrop */
 .ad-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 99999;
   display: flex;
   align-items: center;
@@ -16,7 +17,7 @@
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.4s ease, visibility 0.4s ease;
-  padding: 1rem;
+  padding: clamp(0.5rem, 3vw, 1.5rem);
   box-sizing: border-box;
 }
 
@@ -25,16 +26,18 @@
   visibility: visible;
 }
 
-/* Ad Panel */
+/* ==============================================
+   AD PANEL — Fluid Sizing
+   ============================================== */
 .ad-panel {
   position: relative;
   background: #fff;
-  border-radius: 16px;
+  border-radius: clamp(12px, 2vw, 20px);
   overflow: hidden;
+  width: min(520px, calc(100vw - 1rem));
   max-width: 520px;
-  width: 100%;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
-  transform: scale(0.85) translateY(30px);
+  transform: scale(0.88) translateY(20px);
   transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   animation: adPanelGlow 3s ease-in-out infinite alternate;
 }
@@ -48,35 +51,47 @@
   100% { box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), 0 0 30px 5px rgba(184, 134, 11, 0.15); }
 }
 
-/* Close Button Area */
+/* ==============================================
+   CLOSE BUTTON — On The Card Itself
+   ============================================== */
 .ad-close-area {
   position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 10;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 12px;
-  background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,0,0,0.3));
-  border-radius: 0 16px 0 12px;
+  padding: 5px 8px 5px 10px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.3s;
+}
+
+.ad-close-area:hover {
+  background: rgba(0, 0, 0, 0.8);
 }
 
 .ad-countdown-text {
-  font-size: 0.75rem;
-  color: rgba(255,255,255,0.8);
+  font-size: clamp(0.65rem, 1.5vw, 0.78rem);
+  color: rgba(255, 255, 255, 0.85);
   font-family: 'Inter', -apple-system, sans-serif;
   white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.2px;
 }
 
 .ad-close-btn {
-  width: 32px;
-  height: 32px;
+  width: clamp(26px, 5vw, 32px);
+  height: clamp(26px, 5vw, 32px);
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.4);
-  background: rgba(255,255,255,0.1);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 1.1rem;
+  font-size: clamp(0.9rem, 2vw, 1.15rem);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -85,30 +100,33 @@
   opacity: 0.4;
   pointer-events: none;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .ad-close-btn.ad-enabled {
   opacity: 1;
   pointer-events: auto;
-  background: rgba(220, 38, 38, 0.8);
-  border-color: rgba(220, 38, 38, 0.9);
+  background: rgba(220, 38, 38, 0.85);
+  border-color: rgba(220, 38, 38, 0.95);
+  box-shadow: 0 2px 12px rgba(220, 38, 38, 0.4);
 }
 
 .ad-close-btn.ad-enabled:hover {
   background: #dc2626;
   border-color: #dc2626;
-  transform: scale(1.1);
+  transform: scale(1.12);
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.5);
 }
 
 /* Countdown Ring */
 .ad-countdown-ring {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 36px;
-  height: 36px;
+  top: -3px;
+  right: -3px;
+  width: clamp(30px, 5.5vw, 38px);
+  height: clamp(30px, 5.5vw, 38px);
   pointer-events: none;
-  z-index: 11;
+  z-index: 21;
 }
 
 .ad-countdown-ring svg {
@@ -119,11 +137,11 @@
 
 .ad-countdown-ring circle {
   fill: none;
-  stroke-width: 3;
+  stroke-width: 2.5;
 }
 
 .ad-countdown-ring .ring-bg {
-  stroke: rgba(255,255,255,0.15);
+  stroke: rgba(255, 255, 255, 0.12);
 }
 
 .ad-countdown-ring .ring-progress {
@@ -134,7 +152,9 @@
   transition: stroke-dashoffset 1s linear;
 }
 
-/* Ad Image */
+/* ==============================================
+   AD IMAGE — Fluid
+   ============================================== */
 .ad-image-wrap {
   position: relative;
   width: 100%;
@@ -146,7 +166,7 @@
 .ad-image-wrap img {
   width: 100%;
   height: auto;
-  max-height: 400px;
+  max-height: clamp(200px, 50vh, 420px);
   object-fit: cover;
   display: block;
   transition: transform 0.5s ease;
@@ -158,13 +178,15 @@
 
 .ad-image-wrap .ad-link-indicator {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background: rgba(0,0,0,0.6);
+  bottom: clamp(6px, 1.5vw, 12px);
+  right: clamp(6px, 1.5vw, 12px);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #fff;
-  font-size: 0.7rem;
-  padding: 4px 10px;
-  border-radius: 20px;
+  font-size: clamp(0.6rem, 1.4vw, 0.72rem);
+  padding: clamp(3px, 0.8vw, 5px) clamp(7px, 1.5vw, 12px);
+  border-radius: 100px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -178,7 +200,9 @@
   transform: translateY(0);
 }
 
-/* Ad Video */
+/* ==============================================
+   AD VIDEO — Fluid
+   ============================================== */
 .ad-video-wrap {
   position: relative;
   width: 100%;
@@ -187,21 +211,23 @@
 
 .ad-video-wrap video {
   width: 100%;
-  max-height: 400px;
+  max-height: clamp(200px, 50vh, 420px);
   display: block;
 }
 
 .ad-video-mute-btn {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
-  width: 36px;
-  height: 36px;
+  bottom: clamp(8px, 2vw, 14px);
+  left: clamp(8px, 2vw, 14px);
+  width: clamp(30px, 6vw, 40px);
+  height: clamp(30px, 6vw, 40px);
   border-radius: 50%;
-  border: none;
-  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #fff;
-  font-size: 1rem;
+  font-size: clamp(0.8rem, 1.8vw, 1.1rem);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -210,48 +236,51 @@
 }
 
 .ad-video-mute-btn:hover {
-  background: rgba(0,0,0,0.85);
+  background: rgba(0, 0, 0, 0.85);
 }
 
-/* Ad Body */
+/* ==============================================
+   AD BODY — Fluid Spacing & Typography
+   ============================================== */
 .ad-body {
-  padding: 1.25rem 1.5rem;
+  padding: clamp(0.85rem, 3vw, 1.35rem) clamp(1rem, 3.5vw, 1.6rem);
 }
 
 .ad-sponsored-label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.65rem;
+  font-size: clamp(0.58rem, 1.3vw, 0.68rem);
   text-transform: uppercase;
   letter-spacing: 1.5px;
   color: #9ca3af;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: clamp(0.3rem, 0.8vw, 0.55rem);
 }
 
 .ad-sponsored-label::before {
   content: '';
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #f59e0b;
+  flex-shrink: 0;
 }
 
 .ad-title {
-  font-size: 1.15rem;
+  font-size: clamp(0.95rem, 2.8vw, 1.2rem);
   font-weight: 700;
   color: #111827;
-  margin: 0 0 0.4rem 0;
+  margin: 0 0 clamp(0.25rem, 0.6vw, 0.45rem) 0;
   line-height: 1.3;
   font-family: 'Inter', -apple-system, sans-serif;
 }
 
 .ad-description {
-  font-size: 0.85rem;
+  font-size: clamp(0.76rem, 2vw, 0.88rem);
   color: #6b7280;
-  margin: 0 0 1rem 0;
-  line-height: 1.5;
+  margin: 0 0 clamp(0.7rem, 1.5vw, 1.1rem) 0;
+  line-height: 1.55;
   font-family: 'Inter', -apple-system, sans-serif;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -259,19 +288,21 @@
   overflow: hidden;
 }
 
-/* CTA Buttons */
+/* ==============================================
+   CTA BUTTONS — Fluid
+   ============================================== */
 .ad-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: clamp(0.5rem, 1.5vw, 0.85rem);
   align-items: center;
 }
 
 .ad-cta-btn {
   flex: 1;
-  padding: 0.7rem 1.25rem;
-  border-radius: 10px;
+  padding: clamp(0.55rem, 1.5vw, 0.75rem) clamp(0.85rem, 2.5vw, 1.3rem);
+  border-radius: clamp(8px, 1.2vw, 12px);
   border: none;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 2vw, 0.92rem);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -281,7 +312,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .ad-cta-primary {
@@ -305,7 +336,7 @@
 }
 
 .ad-dismiss-link {
-  font-size: 0.78rem;
+  font-size: clamp(0.7rem, 1.6vw, 0.8rem);
   color: #9ca3af;
   cursor: pointer;
   white-space: nowrap;
@@ -313,30 +344,33 @@
   background: none;
   border: none;
   font-family: 'Inter', -apple-system, sans-serif;
+  flex-shrink: 0;
 }
 
 .ad-dismiss-link:hover {
   color: #6b7280;
 }
 
-/* Ad Badge */
+/* ==============================================
+   AD BADGE — Fluid
+   ============================================== */
 .ad-badge {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: clamp(8px, 2vw, 14px);
+  left: clamp(8px, 2vw, 14px);
   background: linear-gradient(135deg, #b8860b, #d4a843);
   color: #fff;
-  font-size: 0.65rem;
+  font-size: clamp(0.55rem, 1.2vw, 0.65rem);
   font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: clamp(3px, 0.7vw, 5px) clamp(7px, 1.3vw, 11px);
+  border-radius: clamp(4px, 0.8vw, 7px);
   text-transform: uppercase;
   letter-spacing: 1px;
   z-index: 5;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Progress Bar (bottom of panel) */
+/* Progress Bar */
 .ad-progress-bar {
   position: absolute;
   bottom: 0;
@@ -351,75 +385,336 @@
 /* Error State */
 .ad-error-state {
   text-align: center;
-  padding: 2rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
   color: #6b7280;
 }
 
 .ad-error-state svg {
-  width: 40px;
-  height: 40px;
+  width: clamp(32px, 8vw, 44px);
+  height: clamp(32px, 8vw, 44px);
   margin: 0 auto 0.75rem;
   opacity: 0.4;
 }
 
-/* Mobile Responsive */
-@media (max-width: 560px) {
+/* ==============================================
+   RESPONSIVE — Large Tablets & Small Desktops
+   ============================================== */
+@media (max-width: 768px) {
+  .ad-overlay {
+    padding: clamp(0.75rem, 4vw, 1.25rem);
+    align-items: center;
+  }
+
   .ad-panel {
-    max-width: 100%;
-    border-radius: 12px;
-    margin: 0.5rem;
-  }
-
-  .ad-body {
-    padding: 1rem 1.25rem;
-  }
-
-  .ad-title {
-    font-size: 1.05rem;
-  }
-
-  .ad-description {
-    font-size: 0.8rem;
-    -webkit-line-clamp: 2;
-  }
-
-  .ad-cta-btn {
-    padding: 0.65rem 1rem;
-    font-size: 0.85rem;
+    width: min(480px, calc(100vw - 1.5rem));
+    max-width: 480px;
+    border-radius: 16px;
   }
 
   .ad-image-wrap img,
   .ad-video-wrap video {
-    max-height: 280px;
+    max-height: min(50vh, 360px);
   }
 
   .ad-close-area {
-    padding: 8px 10px;
-    border-radius: 0 12px 0 10px;
+    top: 8px;
+    right: 8px;
+    padding: 4px 7px 4px 9px;
   }
 
-  .ad-close-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.95rem;
-  }
-
-  .ad-countdown-text {
-    font-size: 0.7rem;
+  .ad-badge {
+    top: 10px;
+    left: 10px;
   }
 }
 
-@media (max-width: 380px) {
+/* ==============================================
+   RESPONSIVE — Phones Landscape
+   ============================================== */
+@media (max-width: 560px) {
+  .ad-overlay {
+    padding: clamp(0.5rem, 3vw, 1rem);
+  }
+
+  .ad-panel {
+    width: min(440px, calc(100vw - 1rem));
+    max-width: 440px;
+    border-radius: 14px;
+  }
+
+  .ad-image-wrap img,
+  .ad-video-wrap video {
+    max-height: min(45vh, 300px);
+  }
+
+  .ad-body {
+    padding: 0.85rem 1.1rem;
+  }
+
+  .ad-description {
+    -webkit-line-clamp: 2;
+  }
+
+  .ad-close-area {
+    top: 6px;
+    right: 6px;
+    padding: 4px 6px 4px 8px;
+    gap: 5px;
+  }
+
+  .ad-close-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 0.9rem;
+    border-width: 1.5px;
+  }
+
+  .ad-countdown-text {
+    font-size: 0.65rem;
+  }
+
+  .ad-countdown-ring {
+    width: 30px;
+    height: 30px;
+    top: -2px;
+    right: -2px;
+  }
+
+  .ad-badge {
+    top: 8px;
+    left: 8px;
+    padding: 3px 7px;
+    font-size: 0.55rem;
+  }
+
+  .ad-image-wrap .ad-link-indicator {
+    bottom: 6px;
+    right: 6px;
+    padding: 3px 8px;
+    font-size: 0.6rem;
+  }
+
+  .ad-video-mute-btn {
+    bottom: 8px;
+    left: 8px;
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* ==============================================
+   RESPONSIVE — Phones Portrait
+   ============================================== */
+@media (max-width: 400px) {
+  .ad-overlay {
+    padding: 0.4rem;
+    align-items: flex-end;
+  }
+
+  .ad-panel {
+    width: calc(100vw - 0.8rem);
+    max-width: 100%;
+    border-radius: 14px 14px 0 0;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+
+  .ad-image-wrap img,
+  .ad-video-wrap video {
+    max-height: min(40vh, 250px);
+  }
+
+  .ad-body {
+    padding: 0.8rem 1rem 1rem;
+  }
+
+  .ad-title {
+    font-size: 0.95rem;
+  }
+
+  .ad-description {
+    font-size: 0.78rem;
+    -webkit-line-clamp: 2;
+    margin-bottom: 0.75rem;
+  }
+
   .ad-actions {
     flex-direction: column;
+    gap: 0.5rem;
   }
 
   .ad-cta-btn {
     width: 100%;
+    padding: 0.6rem 1rem;
+    font-size: 0.82rem;
+  }
+
+  .ad-dismiss-link {
+    width: 100%;
+    text-align: center;
+    padding: 0.3rem 0;
+  }
+
+  .ad-close-area {
+    top: 6px;
+    right: 6px;
+    padding: 3px 5px 3px 7px;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  .ad-close-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 0.85rem;
+  }
+
+  .ad-countdown-text {
+    font-size: 0.6rem;
+  }
+
+  .ad-countdown-ring {
+    width: 28px;
+    height: 28px;
+  }
+
+  .ad-badge {
+    top: 6px;
+    left: 6px;
+    padding: 2px 6px;
+    font-size: 0.5rem;
+    border-radius: 4px;
   }
 }
 
-/* Dark Mode Support */
+/* ==============================================
+   RESPONSIVE — Very Small Phones
+   ============================================== */
+@media (max-width: 320px) {
+  .ad-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .ad-panel {
+    width: 100vw;
+    border-radius: 12px 12px 0 0;
+    max-height: 90vh;
+  }
+
+  .ad-image-wrap img,
+  .ad-video-wrap video {
+    max-height: 35vh;
+  }
+
+  .ad-body {
+    padding: 0.7rem 0.85rem 0.85rem;
+  }
+
+  .ad-title {
+    font-size: 0.9rem;
+  }
+
+  .ad-description {
+    font-size: 0.75rem;
+    -webkit-line-clamp: 2;
+  }
+
+  .ad-close-area {
+    top: 5px;
+    right: 5px;
+  }
+
+  .ad-close-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 0.8rem;
+  }
+
+  .ad-countdown-ring {
+    width: 26px;
+    height: 26px;
+  }
+
+  .ad-badge {
+    font-size: 0.48rem;
+    padding: 2px 5px;
+  }
+}
+
+/* ==============================================
+   RESPONSIVE — Large Desktops
+   ============================================== */
+@media (min-width: 1200px) {
+  .ad-panel {
+    max-width: 520px;
+    width: 520px;
+  }
+
+  .ad-image-wrap img,
+  .ad-video-wrap video {
+    max-height: 420px;
+  }
+
+  .ad-body {
+    padding: 1.35rem 1.6rem;
+  }
+
+  .ad-title {
+    font-size: 1.2rem;
+  }
+
+  .ad-description {
+    font-size: 0.88rem;
+  }
+
+  .ad-close-area {
+    top: 10px;
+    right: 10px;
+  }
+
+  .ad-badge {
+    top: 14px;
+    left: 14px;
+  }
+}
+
+/* ==============================================
+   RESPONSIVE — Extra Large Screens
+   ============================================== */
+@media (min-width: 1600px) {
+  .ad-panel {
+    max-width: 560px;
+    width: 560px;
+    border-radius: 20px;
+  }
+
+  .ad-image-wrap img,
+  .ad-video-wrap video {
+    max-height: 450px;
+  }
+
+  .ad-body {
+    padding: 1.5rem 1.75rem;
+  }
+
+  .ad-title {
+    font-size: 1.25rem;
+  }
+
+  .ad-description {
+    font-size: 0.92rem;
+  }
+
+  .ad-cta-btn {
+    padding: 0.8rem 1.4rem;
+    font-size: 0.95rem;
+  }
+}
+
+/* ==============================================
+   DARK MODE
+   ============================================== */
 @media (prefers-color-scheme: dark) {
   .ad-panel {
     background: #1f2937;
@@ -453,9 +748,16 @@
   .ad-image-wrap {
     background: #111827;
   }
+
+  .ad-close-area {
+    background: rgba(0, 0, 0, 0.75);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
 }
 
-/* No Motion Preference */
+/* ==============================================
+   NO MOTION
+   ============================================== */
 @media (prefers-reduced-motion: reduce) {
   .ad-overlay,
   .ad-panel,
