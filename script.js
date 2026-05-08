@@ -1965,7 +1965,7 @@ document.addEventListener('keydown', (e) => {
   }();
   
 /* ============================================
-   ADVANCED WEBSITE ANALYTICS SYSTEM v2.0
+   ADVANCED WEBSITE ANALYTICS SYSTEM v3.0
    Tracks: page views, unique visitors (fingerprint),
    clicks, session duration, device info, referrer,
    first vs returning, active users, countries,
@@ -1977,7 +1977,14 @@ document.addEventListener('keydown', (e) => {
    (load time, TTFB, LCP, CLS, INP, long tasks,
    JS errors, resource errors, memory, connection),
    health score & status, error details
-   Batch writes every 30 seconds
+   
+   [v3.0 ADDITIONS]:
+   - Dashboard widget interactions (chart ranges, tabs)
+   - AI Assistant interactions (queries, panel opens)
+   - Command Palette usage
+   - Data export tracking (CSV, etc.)
+   - Feature adoption tracking
+   - Enhanced long-task aggregation for health
    ============================================ */
 const SiteAnalytics = (function () {
   /* --- Storage Keys --- */
@@ -2220,6 +2227,7 @@ const SiteAnalytics = (function () {
      =========================== */
 
   var healthMetrics = {};
+  var longTaskCount = 0; // Enhanced tracking
 
   function capturePerformanceMetrics() {
     var m = {};
@@ -2262,6 +2270,7 @@ const SiteAnalytics = (function () {
     m.pdfViewer = navigator.pdfViewerEnabled !== false;
     m.language = navigator.language;
     m.languages = (navigator.languages || []).slice(0, 5);
+    m.longTaskCount = longTaskCount; // Include aggregated long tasks
     healthMetrics = m;
     return m;
   }
@@ -2309,6 +2318,7 @@ const SiteAnalytics = (function () {
       new PerformanceObserver(function (list) {
         if (!db) return;
         var count = list.getEntries().length;
+        longTaskCount += count; // Aggregate locally for health snapshot
         safeTx('analytics/health/' + td + '/longTasks', count);
       }).observe({ type: 'longtask', buffered: true });
     } catch (e) { }
@@ -2325,7 +2335,7 @@ const SiteAnalytics = (function () {
       });
     } catch (e) { }
 
-    /* Navigation entries (more reliable than timing API) */
+    /* Navigation entries */
     try {
       var navEntries = performance.getEntriesByType('navigation');
       if (navEntries.length > 0) {
@@ -2368,6 +2378,7 @@ const SiteAnalytics = (function () {
       else if (m.ttfb > 600) score -= 6;
       else if (m.ttfb > 300) score -= 2;
     }
+    if (m.longTaskCount > 10) score -= 5; // Penalize heavy long tasks
     return Math.max(0, Math.min(100, score));
   }
 
@@ -2435,7 +2446,6 @@ const SiteAnalytics = (function () {
       var td = todayKey();
 
       if (!e.target || e.target === window) {
-        /* --- JS Error --- */
         safeTx('analytics/health/' + td + '/errors', 1);
         var ref = db.ref('analytics/health/' + td + '/errorDetails').push();
         ref.set({
@@ -2452,7 +2462,6 @@ const SiteAnalytics = (function () {
         }).catch(function () { });
         trimNode('analytics/health/' + td + '/errorDetails', MAX_HEALTH_DETAILS);
       } else {
-        /* --- Resource Error --- */
         safeTx('analytics/health/' + td + '/resourceErrors', 1);
         var src = '';
         var tag = (e.target.tagName || 'unknown').toLowerCase();
@@ -2491,6 +2500,8 @@ const SiteAnalytics = (function () {
   var sessionSearches = 0;
   var sessionScrollMax = 0;
   var sessionStateChanges = 0;
+  var sessionFeatureUsage = 0; // NovaCore Addition
+  var sessionAIQueries = 0;    // NovaCore Addition
 
   function markInteracted() { hasInteracted = true; }
 
@@ -2517,7 +2528,6 @@ const SiteAnalytics = (function () {
   }
 
   function trackStateChanges() {
-    /* Detailed route changes */
     window.addEventListener('hashchange', function (e) {
       var from = 'unknown', to = 'unknown', fullFrom = '', fullTo = '';
       try {
@@ -2530,7 +2540,6 @@ const SiteAnalytics = (function () {
       enqueue({ type: 'route_change', from: from, to: to, fullFrom: fullFrom, fullTo: fullTo });
     });
 
-    /* localStorage state changes from other tabs */
     var ignoredKeys = [FP_KEY, SES_KEY, FV_KEY, VC_KEY, CTRY_KEY, CTRY_TS, CTRY_CITY_KEY];
     window.addEventListener('storage', function (e) {
       if (e.key && ignoredKeys.indexOf(e.key) === -1) {
@@ -2545,7 +2554,6 @@ const SiteAnalytics = (function () {
       }
     });
 
-    /* Tab visibility — track hidden time */
     var hiddenTime = 0;
     document.addEventListener('visibilitychange', function () {
       var now = Date.now();
@@ -2562,14 +2570,12 @@ const SiteAnalytics = (function () {
       }
     });
 
-    /* Orientation change */
     window.addEventListener('orientationchange', function () {
       var orient = 'unknown';
       try { orient = screen.orientation ? screen.orientation.type : (window.innerWidth > window.innerHeight ? 'landscape-primary' : 'portrait-primary'); } catch (ex) { }
       enqueue({ type: 'orientation', page: pageName(), orientation: orient });
     });
 
-    /* Resize (debounced) */
     var resizeTimer;
     window.addEventListener('resize', function () {
       clearTimeout(resizeTimer);
@@ -2578,7 +2584,6 @@ const SiteAnalytics = (function () {
       }, 2000);
     });
 
-    /* Online / Offline transitions */
     window.addEventListener('online', function () {
       enqueue({ type: 'connection_change', page: pageName(), status: 'online' });
     });
@@ -2594,7 +2599,7 @@ const SiteAnalytics = (function () {
       var el = e.target;
       if (!el) return;
       var isSearch = el.type === 'search' ||
-        (el.placeholder && /search|بحث|chercher|بحث|buscar|rechercher|找/i.test(el.placeholder)) ||
+        (el.placeholder && /search|بحث|chercher|buscar|rechercher|找/i.test(el.placeholder)) ||
         (el.name && /search|query|q|keyword/i.test(el.name)) ||
         (el.id && /search|query/i.test(el.id)) ||
         el.closest('.search-box, .search-bar, .search-container, [role="search"]');
@@ -2748,7 +2753,12 @@ const SiteAnalytics = (function () {
       isNew: event.isNew || false,
       visitCount: event.visitCount || 0,
       eventType: event.eventType || '',
-      data: event.data || {}
+      data: event.data || {},
+      /* NovaCore Additions */
+      feature: event.feature || '',
+      action: event.action || '',
+      widget: event.widget || '',
+      metadata: event.metadata || {}
     });
     if (eventQueue.length >= MAX_QUEUE) flushQueue();
   }
@@ -2781,7 +2791,10 @@ const SiteAnalytics = (function () {
     var scrollPts = Math.min(15, Math.floor(sessionScrollMax / 100 * 15));
     var searchPts = Math.min(10, sessionSearches * 5);
     var statePts = Math.min(5, sessionStateChanges);
-    return Math.min(100, timePts + viewsPts + clicksPts + scrollPts + searchPts + statePts);
+    /* NovaCore: Reward feature & AI interaction heavily */
+    var featurePts = Math.min(15, sessionFeatureUsage * 3);
+    var aiPts = Math.min(10, sessionAIQueries * 5);
+    return Math.min(100, timePts + viewsPts + clicksPts + scrollPts + searchPts + statePts + featurePts + aiPts);
   }
 
   function flushQueue() {
@@ -2792,12 +2805,15 @@ const SiteAnalytics = (function () {
     /* --- Aggregate --- */
     var views = 0, clickCount = 0, routeChanges = 0, formSubmits = 0;
     var externalLinks = 0, downloads = 0, mailtos = 0, telClicks = 0;
-    var tabHides = 0, connChanges = 0;
+    var tabHides = 0, connChanges = 0, aiQueries = 0;
     var pageViews = {}, pageClicks = {}, clickDetails = [];
     var referrers = {}, devices = {}, browsers = {};
     var scrollCounts = {}, stateChangeKeys = {}, searchQueries = {};
     var customEvents = {}, orientations = {};
     var routeFlows = {};
+    
+    /* NovaCore Aggregates */
+    var featureUsage = {}, dashboardInteractions = {}, aiInteractions = {};
 
     batch.forEach(function (ev) {
       switch (ev.type) {
@@ -2862,6 +2878,22 @@ const SiteAnalytics = (function () {
         case 'orientation':
           orientations[ev.orientation] = (orientations[ev.orientation] || 0) + 1;
           break;
+        /* NovaCore Event Types */
+        case 'feature_usage':
+          sessionFeatureUsage++;
+          var fKey = ev.feature + ':' + ev.action;
+          featureUsage[fKey] = (featureUsage[fKey] || 0) + 1;
+          break;
+        case 'dashboard_interaction':
+          var dKey = ev.widget + ':' + ev.action;
+          dashboardInteractions[dKey] = (dashboardInteractions[dKey] || 0) + 1;
+          break;
+        case 'ai_interaction':
+          sessionAIQueries++;
+          aiQueries++;
+          var aKey = ev.action || 'query';
+          aiInteractions[aKey] = (aiInteractions[aKey] || 0) + 1;
+          break;
       }
       if (ev.ref) referrers[ev.ref] = (referrers[ev.ref] || 0) + 1;
       devices[ev.dev] = (devices[ev.dev] || 0) + 1;
@@ -2897,6 +2929,7 @@ const SiteAnalytics = (function () {
     if (telClicks > 0) safeTx('analytics/daily/' + td + '/telClicks', telClicks);
     if (tabHides > 0) safeTx('analytics/daily/' + td + '/tabHides', tabHides);
     if (connChanges > 0) safeTx('analytics/daily/' + td + '/connectionChanges', connChanges);
+    if (aiQueries > 0) safeTx('analytics/daily/' + td + '/aiQueries', aiQueries);
 
     /* Page-level */
     for (var pg in pageViews) safeTx('analytics/pages/' + pg + '/views', pageViews[pg]);
@@ -2937,6 +2970,11 @@ const SiteAnalytics = (function () {
     /* Orientations */
     for (var oo in orientations) safeTx('analytics/orientations/' + oo, orientations[oo]);
 
+    /* NovaCore Dashboard specific writes */
+    for (var ff in featureUsage) safeTx('analytics/features/' + ff, featureUsage[ff]);
+    for (var dd in dashboardInteractions) safeTx('analytics/dashboard/' + dd, dashboardInteractions[dd]);
+    for (var ai in aiInteractions) safeTx('analytics/ai/' + ai, aiInteractions[ai]);
+
     /* Prune */
     trimNode('analytics/recent', MAX_RECENT);
   }
@@ -2970,17 +3008,11 @@ const SiteAnalytics = (function () {
       }
     }
 
-    /* Dark mode tracking */
     if (getDarkMode()) safeTx('analytics/daily/' + td + '/darkModeUsers', 1);
     if (getReducedMotion()) safeTx('analytics/daily/' + td + '/reducedMotionUsers', 1);
-
-    /* Input method tracking */
     safeTx('analytics/daily/' + td + '/inputMethods/' + getInputMethod(), 1);
-
-    /* Ad blocker tracking */
     if (detectAdBlocker()) safeTx('analytics/daily/' + td + '/adBlockerUsers', 1);
 
-    /* Language tracking */
     var lang = (navigator.language || 'unknown').split('-')[0];
     safeTx('analytics/daily/' + td + '/languages/' + lang, 1);
 
@@ -3046,6 +3078,24 @@ const SiteAnalytics = (function () {
   function trackEvent(eventType, label, data) {
     markInteracted();
     enqueue({ type: 'custom', eventType: eventType, label: label || '', data: data || {} });
+  }
+
+  /* NovaCore: Track specific dashboard feature usage (Command palette, Theme toggle, Export) */
+  function trackFeatureUsage(feature, action, metadata) {
+    markInteracted();
+    enqueue({ type: 'feature_usage', feature: feature, action: action, metadata: metadata || {} });
+  }
+
+  /* NovaCore: Track dashboard widget interactions (Changing chart ranges, applying AI insights) */
+  function trackDashboardInteraction(widget, action, metadata) {
+    markInteracted();
+    enqueue({ type: 'dashboard_interaction', widget: widget, action: action, metadata: metadata || {} });
+  }
+
+  /* NovaCore: Track AI Panel usage specifically */
+  function trackAIInteraction(action, query, metadata) {
+    markInteracted();
+    enqueue({ type: 'ai_interaction', action: action, query: query || '', metadata: metadata || {} });
   }
 
   /* Expose getters for health dashboard */
@@ -3158,6 +3208,9 @@ const SiteAnalytics = (function () {
   return {
     init: init,
     trackEvent: trackEvent,
+    trackFeatureUsage: trackFeatureUsage,
+    trackDashboardInteraction: trackDashboardInteraction,
+    trackAIInteraction: trackAIInteraction,
     getHealthMetrics: getHealthMetrics,
     getCountry: getCountry,
     getCity: getCity
