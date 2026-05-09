@@ -147,22 +147,20 @@
   }
 
   /* ---------- TRACK IMPRESSION ---------- */
- function trackImpression(adKey) {
-  if (!db || !adKey) return;
-  // Must match admin path: adverts/ads/{key}/impressions
-  db.ref(ADVERTS_NODE + '/ads/' + adKey + '/impressions').transaction(function(current) {
-    return (current || 0) + 1;
-  }).catch(function() {});
-}
+  function trackImpression(adKey) {
+    if (!db || !adKey) return;
+    db.ref(ADVERTS_NODE + '/' + adKey + '/impressions').transaction(function(current) {
+      return (current || 0) + 1;
+    }).catch(function() {});
+  }
 
   /* ---------- TRACK CLICK ---------- */
- function trackClick(adKey) {
-  if (!db || !adKey) return;
-  // Must match admin path: adverts/ads/{key}/clicks
-  db.ref(ADVERTS_NODE + '/ads/' + adKey + '/clicks').transaction(function(current) {
-    return (current || 0) + 1;
-  }).catch(function() {});
-}
+  function trackClick(adKey) {
+    if (!db || !adKey) return;
+    db.ref(ADVERTS_NODE + '/' + adKey + '/clicks').transaction(function(current) {
+      return (current || 0) + 1;
+    }).catch(function() {});
+  }
 
   /* ---------- BUILD AD DOM ---------- */
   function buildAdHTML(ad) {
@@ -465,4 +463,262 @@
     boot();
   }
 
+})();
+// ==========================================
+// UNIVERSAL NON-DESTRUCTIVE AUTO-SCALER
+// ==========================================
+(function() {
+  const TARGET_WIDTH = 820;
+  const BASE_HEIGHT = 1180;
+  
+  // 1. Create the wrapper
+  const wrapper = document.createElement('div');
+  wrapper.id = 'universal-app-scaler';
+  
+  // 2. Move ALL existing website content into this wrapper
+  while (document.body.firstChild) {
+    wrapper.appendChild(document.body.firstChild);
+  }
+  document.body.appendChild(wrapper);
+  
+  // 3. Smart Fixed-Element Isolation System
+  const isolatedElements = new Set();
+  
+  function isolateFixedElements(scale) {
+    const allElements = wrapper.querySelectorAll('*');
+    allElements.forEach(el => {
+      if (isolatedElements.has(el)) return;
+      if (window.getComputedStyle(el).position === 'fixed') {
+        isolatedElements.add(el);
+        document.body.appendChild(el);
+        el.style.zoom = scale;
+      }
+    });
+  }
+  
+  // 4. The Scaling Function
+  function scaleAppToFitScreen() {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    const scaleX = screenWidth / TARGET_WIDTH;
+    const scaleY = screenHeight / BASE_HEIGHT;
+    const finalScale = Math.min(scaleX, scaleY);
+    
+    // Dynamic height to ensure it touches the bottom
+    const dynamicHeight = screenHeight / finalScale;
+    
+    // Scale the wrapper
+    wrapper.style.width = TARGET_WIDTH + 'px';
+    wrapper.style.minHeight = dynamicHeight + 'px';
+    wrapper.style.margin = '0 auto';
+    wrapper.style.zoom = finalScale;
+    
+    // Calculate the exact physical pixel width and left-position of the scaled wrapper
+    const scaledWidth = TARGET_WIDTH * finalScale;
+    const wrapperOffsetLeft = (screenWidth - scaledWidth) / 2;
+    
+    // Update isolated elements
+    isolatedElements.forEach(el => {
+      el.style.zoom = finalScale;
+      
+      const computedStyle = window.getComputedStyle(el);
+      const isFullWidth = computedStyle.left === '0px' && (computedStyle.width === '100%' || el.style.width === '100%');
+      const isFullOverlay = computedStyle.top === '0px' && computedStyle.height === '100%';
+      
+      // If it's a full-width bar (like a Navbar or Music Player) but NOT a full-screen overlay (like a Modal)
+      if (isFullWidth && !isFullOverlay) {
+        // Force it to perfectly match the 820px scaled boundaries
+        el.style.width = scaledWidth + 'px';
+        el.style.left = wrapperOffsetLeft + 'px';
+        el.style.right = 'auto'; // Prevent it from stretching across the whole screen
+      } else {
+        // Ensure overlays go back to full screen if they were previously changed
+        if (el.style.width === scaledWidth + 'px') {
+          el.style.width = '';
+          el.style.left = '';
+          el.style.right = '';
+        }
+      }
+    });
+  }
+  
+  // 5. MutationObserver: Catch dynamically added elements
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.nodeType !== 1) return;
+        if (node === wrapper) return;
+        
+        if (node.parentNode === document.body) {
+          if (window.getComputedStyle(node).position === 'fixed') {
+            isolatedElements.add(node);
+            node.style.zoom = wrapper.style.zoom;
+            return;
+          }
+        }
+        
+        if (node.parentNode === wrapper || wrapper.contains(node)) {
+          const checkAndIsolate = (el) => {
+            if (isolatedElements.has(el)) return;
+            if (window.getComputedStyle(el).position === 'fixed') {
+              isolatedElements.add(el);
+              document.body.appendChild(el);
+              el.style.zoom = wrapper.style.zoom;
+            } else {
+              el.querySelectorAll && el.querySelectorAll('*').forEach(checkAndIsolate);
+            }
+          };
+          checkAndIsolate(node);
+        }
+      });
+    });
+  });
+  
+  observer.observe(document.body, { childList: true, subtree: true });
+  
+  // 6. Initialization
+  scaleAppToFitScreen();
+  
+  setTimeout(() => {
+    isolateFixedElements(wrapper.style.zoom);
+    // Run scaling one more time after isolation to apply the width constraints
+    scaleAppToFitScreen();
+  }, 100);
+  
+  window.addEventListener('resize', scaleAppToFitScreen);
+  window.addEventListener('orientationchange', scaleAppToFitScreen);
+  
+  if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener('change', scaleAppToFitScreen);
+  }
+})();
+// ==========================================
+// UNIVERSAL NON-DESTRUCTIVE AUTO-SCALER
+// ==========================================
+(function() {
+  const TARGET_WIDTH = 820;
+  const BASE_HEIGHT = 1180;
+  
+  // 1. Create the wrapper
+  const wrapper = document.createElement('div');
+  wrapper.id = 'universal-app-scaler';
+  
+  // 2. Move ALL existing website content into this wrapper
+  while (document.body.firstChild) {
+    wrapper.appendChild(document.body.firstChild);
+  }
+  document.body.appendChild(wrapper);
+  
+  // 3. Smart Fixed-Element Isolation System
+  const isolatedElements = new Set();
+  
+  function isolateFixedElements(scale) {
+    const allElements = wrapper.querySelectorAll('*');
+    allElements.forEach(el => {
+      if (isolatedElements.has(el)) return;
+      if (window.getComputedStyle(el).position === 'fixed') {
+        isolatedElements.add(el);
+        document.body.appendChild(el);
+        el.style.zoom = scale;
+      }
+    });
+  }
+  
+  // 4. The Scaling Function
+  function scaleAppToFitScreen() {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    const scaleX = screenWidth / TARGET_WIDTH;
+    const scaleY = screenHeight / BASE_HEIGHT;
+    const finalScale = Math.min(scaleX, scaleY);
+    
+    // Dynamic height to ensure it touches the bottom
+    const dynamicHeight = screenHeight / finalScale;
+    
+    // Scale the wrapper
+    wrapper.style.width = TARGET_WIDTH + 'px';
+    wrapper.style.minHeight = dynamicHeight + 'px';
+    wrapper.style.margin = '0 auto';
+    wrapper.style.zoom = finalScale;
+    
+    // Calculate the exact physical pixel width and left-position of the scaled wrapper
+    const scaledWidth = TARGET_WIDTH * finalScale;
+    const wrapperOffsetLeft = (screenWidth - scaledWidth) / 2;
+    
+    // Update isolated elements
+    isolatedElements.forEach(el => {
+      el.style.zoom = finalScale;
+      
+      const computedStyle = window.getComputedStyle(el);
+      const isFullWidth = computedStyle.left === '0px' && (computedStyle.width === '100%' || el.style.width === '100%');
+      const isFullOverlay = computedStyle.top === '0px' && computedStyle.height === '100%';
+      
+      // If it's a full-width bar (like a Navbar or Music Player) but NOT a full-screen overlay (like a Modal)
+      if (isFullWidth && !isFullOverlay) {
+        // Force it to perfectly match the 820px scaled boundaries
+        el.style.width = scaledWidth + 'px';
+        el.style.left = wrapperOffsetLeft + 'px';
+        el.style.right = 'auto'; // Prevent it from stretching across the whole screen
+      } else {
+        // Ensure overlays go back to full screen if they were previously changed
+        if (el.style.width === scaledWidth + 'px') {
+          el.style.width = '';
+          el.style.left = '';
+          el.style.right = '';
+        }
+      }
+    });
+  }
+  
+  // 5. MutationObserver: Catch dynamically added elements
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.nodeType !== 1) return;
+        if (node === wrapper) return;
+        
+        if (node.parentNode === document.body) {
+          if (window.getComputedStyle(node).position === 'fixed') {
+            isolatedElements.add(node);
+            node.style.zoom = wrapper.style.zoom;
+            return;
+          }
+        }
+        
+        if (node.parentNode === wrapper || wrapper.contains(node)) {
+          const checkAndIsolate = (el) => {
+            if (isolatedElements.has(el)) return;
+            if (window.getComputedStyle(el).position === 'fixed') {
+              isolatedElements.add(el);
+              document.body.appendChild(el);
+              el.style.zoom = wrapper.style.zoom;
+            } else {
+              el.querySelectorAll && el.querySelectorAll('*').forEach(checkAndIsolate);
+            }
+          };
+          checkAndIsolate(node);
+        }
+      });
+    });
+  });
+  
+  observer.observe(document.body, { childList: true, subtree: true });
+  
+  // 6. Initialization
+  scaleAppToFitScreen();
+  
+  setTimeout(() => {
+    isolateFixedElements(wrapper.style.zoom);
+    // Run scaling one more time after isolation to apply the width constraints
+    scaleAppToFitScreen();
+  }, 100);
+  
+  window.addEventListener('resize', scaleAppToFitScreen);
+  window.addEventListener('orientationchange', scaleAppToFitScreen);
+  
+  if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener('change', scaleAppToFitScreen);
+  }
 })();
