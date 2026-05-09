@@ -4436,3 +4436,55 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+// ==========================================
+// AUTO-SCALING VIEWPORT SYSTEM
+// ==========================================
+function scaleAppToFitScreen() {
+    const TARGET_WIDTH = 820;
+    const BASE_HEIGHT = 1180; // Used for initial ratio calculation
+    
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    const scaleX = screenWidth / TARGET_WIDTH;
+    const scaleY = screenHeight / BASE_HEIGHT;
+    
+    // Use the smaller ratio to prevent cropping
+    const finalScale = Math.min(scaleX, scaleY);
+    
+    // DYNAMIC HEIGHT: Calculate the exact height needed so the scaled 
+    // body perfectly touches the bottom of the screen (no black bars)
+    const dynamicHeight = screenHeight / finalScale;
+    
+    // Apply dimensions
+    document.body.style.width = TARGET_WIDTH + 'px';
+    document.body.style.height = dynamicHeight + 'px';
+    document.body.style.margin = '0';
+    document.body.style.overflowY = 'auto';
+    document.body.style.overflowX = 'hidden';
+    
+    // Scale from top-left
+    document.body.style.transform = 'scale(' + finalScale + ')';
+    document.body.style.transformOrigin = 'top left';
+    
+    // Calculate rendered size after scaling
+    const scaledWidth = TARGET_WIDTH * finalScale;
+    const scaledHeight = dynamicHeight * finalScale; // This will now perfectly equal screenHeight
+    
+    // Center on screen
+    document.body.style.position = 'fixed';
+    document.body.style.left = ((screenWidth - scaledWidth) / 2) + 'px';
+    document.body.style.top = ((screenHeight - scaledHeight) / 2) + 'px';
+    
+    // Lock the viewport
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.width = '100%';
+    document.documentElement.style.height = '100%';
+}
+
+scaleAppToFitScreen();
+window.addEventListener('resize', scaleAppToFitScreen);
+window.addEventListener('orientationchange', scaleAppToFitScreen);
+if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener('change', scaleAppToFitScreen);
+}
