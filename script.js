@@ -4436,55 +4436,79 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
 // ==========================================
-// AUTO-SCALING VIEWPORT SYSTEM
+// UNIVERSAL AUTO-SCALING VIEWPORT SYSTEM
 // ==========================================
-function scaleAppToFitScreen() {
-    const TARGET_WIDTH = 820;
-    const BASE_HEIGHT = 1180; // Used for initial ratio calculation
-    
+(function() {
+  const TARGET_WIDTH = 820;
+  const BASE_HEIGHT = 1180;
+  
+  // 1. Create an invisible wrapper div
+  const wrapper = document.createElement('div');
+  wrapper.id = 'universal-app-scaler';
+  
+  // 2. Move ALL existing website content into this wrapper
+  while (document.body.firstChild) {
+    wrapper.appendChild(document.body.firstChild);
+  }
+  
+  // 3. Put the wrapper back into the body
+  document.body.appendChild(wrapper);
+  
+  // 4. MutationObserver: Automatically catch any new elements 
+  // (like modals or dynamically loaded content) and put them inside the wrapper
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        // If a script adds something directly to the body, move it into our wrapper
+        if (node.parentNode === document.body && node !== wrapper) {
+          wrapper.appendChild(node);
+        }
+      });
+    });
+  });
+  
+  // Start watching the body for changes
+  observer.observe(document.body, { childList: true });
+  
+  // 5. The Scaling Function
+  function scaleAppToFitScreen() {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
     
     const scaleX = screenWidth / TARGET_WIDTH;
     const scaleY = screenHeight / BASE_HEIGHT;
     
-    // Use the smaller ratio to prevent cropping
+    // Use the smaller ratio to ensure nothing gets cropped
     const finalScale = Math.min(scaleX, scaleY);
     
-    // DYNAMIC HEIGHT: Calculate the exact height needed so the scaled 
-    // body perfectly touches the bottom of the screen (no black bars)
+    // Calculate exact height needed so it ALWAYS touches the bottom (no black bars)
     const dynamicHeight = screenHeight / finalScale;
     
-    // Apply dimensions
-    document.body.style.width = TARGET_WIDTH + 'px';
-    document.body.style.height = dynamicHeight + 'px';
-    document.body.style.margin = '0';
-    document.body.style.overflowY = 'auto';
-    document.body.style.overflowX = 'hidden';
+    // Apply styles to the wrapper ONLY (leaves the website's native body alone)
+    wrapper.style.width = TARGET_WIDTH + 'px';
+    wrapper.style.height = dynamicHeight + 'px';
+    wrapper.style.margin = '0 auto';
+    wrapper.style.overflowX = 'hidden';
+    wrapper.style.overflowY = 'auto';
+    wrapper.style.boxSizing = 'border-box';
+    wrapper.style.position = 'relative'; // Keeps internal fixed/absolute elements working
+    wrapper.style.backgroundColor = 'inherit';
     
-    // Scale from top-left
-    document.body.style.transform = 'scale(' + finalScale + ')';
-    document.body.style.transformOrigin = 'top left';
-    
-    // Calculate rendered size after scaling
-    const scaledWidth = TARGET_WIDTH * finalScale;
-    const scaledHeight = dynamicHeight * finalScale; // This will now perfectly equal screenHeight
-    
-    // Center on screen
-    document.body.style.position = 'fixed';
-    document.body.style.left = ((screenWidth - scaledWidth) / 2) + 'px';
-    document.body.style.top = ((screenHeight - scaledHeight) / 2) + 'px';
-    
-    // Lock the viewport
-    document.documentElement.style.overflow = 'hidden';
-    document.documentElement.style.width = '100%';
-    document.documentElement.style.height = '100%';
-}
-
-scaleAppToFitScreen();
-window.addEventListener('resize', scaleAppToFitScreen);
-window.addEventListener('orientationchange', scaleAppToFitScreen);
-if (screen.orientation && screen.orientation.addEventListener) {
+    // Use ZOOM instead of transform: scale()
+    // Zoom adjusts actual layout, so click coordinates and scrolling work natively!
+    wrapper.style.zoom = finalScale;
+  }
+  
+  // Run immediately
+  scaleAppToFitScreen();
+  
+  // Run on screen changes
+  window.addEventListener('resize', scaleAppToFitScreen);
+  window.addEventListener('orientationchange', scaleAppToFitScreen);
+  
+  if (screen.orientation && screen.orientation.addEventListener) {
     screen.orientation.addEventListener('change', scaleAppToFitScreen);
-}
+  }
+})();
