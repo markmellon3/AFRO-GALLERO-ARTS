@@ -727,7 +727,7 @@ function openPortfolioRegistration() {
           <p style="margin:0;font-size:0.85rem;opacity:0.8;">Get started for just</p>
           <p style="margin:4px 0 0 0;font-size:2rem;font-weight:800;color:var(--primary);">${portfolioPrice}</p>
         </div>
-        <a href="portfolio.html" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;display:block;font-weight:600;padding:12px;">
+        <a href="/portfolio.html" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;display:block;font-weight:600;padding:12px;">
           <i data-lucide="user-plus" style="width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Register Now
         </a>
       </div>`;
@@ -4436,15 +4436,14 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
-
 // ==========================================
-// UNIVERSAL AUTO-SCALING VIEWPORT SYSTEM
+// UNIVERSAL NON-DESTRUCTIVE AUTO-SCALER
 // ==========================================
 (function() {
   const TARGET_WIDTH = 820;
   const BASE_HEIGHT = 1180;
   
-  // 1. Create an invisible wrapper div
+  // 1. Create the wrapper
   const wrapper = document.createElement('div');
   wrapper.id = 'universal-app-scaler';
   
@@ -4452,59 +4451,113 @@ if (document.readyState === 'loading') {
   while (document.body.firstChild) {
     wrapper.appendChild(document.body.firstChild);
   }
-  
-  // 3. Put the wrapper back into the body
   document.body.appendChild(wrapper);
   
-  // 4. MutationObserver: Automatically catch any new elements 
-  // (like modals or dynamically loaded content) and put them inside the wrapper
-  const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      mutation.addedNodes.forEach(function(node) {
-        // If a script adds something directly to the body, move it into our wrapper
-        if (node.parentNode === document.body && node !== wrapper) {
-          wrapper.appendChild(node);
-        }
-      });
+  // 3. Smart Fixed-Element Isolation System
+  const isolatedElements = new Set();
+  
+  function isolateFixedElements(scale) {
+    const allElements = wrapper.querySelectorAll('*');
+    allElements.forEach(el => {
+      if (isolatedElements.has(el)) return;
+      if (window.getComputedStyle(el).position === 'fixed') {
+        isolatedElements.add(el);
+        document.body.appendChild(el);
+        el.style.zoom = scale;
+      }
     });
-  });
+  }
   
-  // Start watching the body for changes
-  observer.observe(document.body, { childList: true });
-  
-  // 5. The Scaling Function
+  // 4. The Scaling Function
   function scaleAppToFitScreen() {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
     
     const scaleX = screenWidth / TARGET_WIDTH;
     const scaleY = screenHeight / BASE_HEIGHT;
-    
-    // Use the smaller ratio to ensure nothing gets cropped
     const finalScale = Math.min(scaleX, scaleY);
     
-    // Calculate exact height needed so it ALWAYS touches the bottom (no black bars)
+    // Dynamic height to ensure it touches the bottom
     const dynamicHeight = screenHeight / finalScale;
     
-    // Apply styles to the wrapper ONLY (leaves the website's native body alone)
+    // Scale the wrapper
     wrapper.style.width = TARGET_WIDTH + 'px';
-    wrapper.style.height = dynamicHeight + 'px';
+    wrapper.style.minHeight = dynamicHeight + 'px';
     wrapper.style.margin = '0 auto';
-    wrapper.style.overflowX = 'hidden';
-    wrapper.style.overflowY = 'auto';
-    wrapper.style.boxSizing = 'border-box';
-    wrapper.style.position = 'relative'; // Keeps internal fixed/absolute elements working
-    wrapper.style.backgroundColor = 'inherit';
-    
-    // Use ZOOM instead of transform: scale()
-    // Zoom adjusts actual layout, so click coordinates and scrolling work natively!
     wrapper.style.zoom = finalScale;
+    
+    // Calculate the exact physical pixel width and left-position of the scaled wrapper
+    const scaledWidth = TARGET_WIDTH * finalScale;
+    const wrapperOffsetLeft = (screenWidth - scaledWidth) / 2;
+    
+    // Update isolated elements
+    isolatedElements.forEach(el => {
+      el.style.zoom = finalScale;
+      
+      const computedStyle = window.getComputedStyle(el);
+      const isFullWidth = computedStyle.left === '0px' && (computedStyle.width === '100%' || el.style.width === '100%');
+      const isFullOverlay = computedStyle.top === '0px' && computedStyle.height === '100%';
+      
+      // If it's a full-width bar (like a Navbar or Music Player) but NOT a full-screen overlay (like a Modal)
+      if (isFullWidth && !isFullOverlay) {
+        // Force it to perfectly match the 820px scaled boundaries
+        el.style.width = scaledWidth + 'px';
+        el.style.left = wrapperOffsetLeft + 'px';
+        el.style.right = 'auto'; // Prevent it from stretching across the whole screen
+      } else {
+        // Ensure overlays go back to full screen if they were previously changed
+        if (el.style.width === scaledWidth + 'px') {
+          el.style.width = '';
+          el.style.left = '';
+          el.style.right = '';
+        }
+      }
+    });
   }
   
-  // Run immediately
+  // 5. MutationObserver: Catch dynamically added elements
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.nodeType !== 1) return;
+        if (node === wrapper) return;
+        
+        if (node.parentNode === document.body) {
+          if (window.getComputedStyle(node).position === 'fixed') {
+            isolatedElements.add(node);
+            node.style.zoom = wrapper.style.zoom;
+            return;
+          }
+        }
+        
+        if (node.parentNode === wrapper || wrapper.contains(node)) {
+          const checkAndIsolate = (el) => {
+            if (isolatedElements.has(el)) return;
+            if (window.getComputedStyle(el).position === 'fixed') {
+              isolatedElements.add(el);
+              document.body.appendChild(el);
+              el.style.zoom = wrapper.style.zoom;
+            } else {
+              el.querySelectorAll && el.querySelectorAll('*').forEach(checkAndIsolate);
+            }
+          };
+          checkAndIsolate(node);
+        }
+      });
+    });
+  });
+  
+  observer.observe(document.body, { childList: true, subtree: true });
+  
+  // 6. Initialization
   scaleAppToFitScreen();
   
-  // Run on screen changes
+  setTimeout(() => {
+    isolateFixedElements(wrapper.style.zoom);
+    // Run scaling one more time after isolation to apply the width constraints
+    scaleAppToFitScreen();
+  }, 100);
+  
   window.addEventListener('resize', scaleAppToFitScreen);
   window.addEventListener('orientationchange', scaleAppToFitScreen);
   
