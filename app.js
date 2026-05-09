@@ -1866,134 +1866,11 @@ function updateUploadProgress(done, total) {
 /* ==============================================
    FORM SUBMISSION
    ============================================== */
-   
-async function syncArtistNameToProfile(newName) {
-  if (!newName || !newName.trim()) return;
-  
-  // Compare with current profile name
-  var currentName = '';
-  if (state.userProfile) {
-    currentName = ((state.userProfile.firstName || '') + ' ' + (state.userProfile.secondName || '')).trim();
-  }
-  
-  // If same, no need to sync
-  if (currentName === newName.trim()) return;
-  
-  // Split name into parts
-  var nameParts = newName.trim().split(/\s+/);
-  var firstName = nameParts[0] || '';
-  var secondName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-  
-  // Build ALL updates in one object for efficiency
-  var updates = {};
-  
-  // Update profile
-  if (state.userInfoRef && auth.currentUser) {
-    updates['user_information/' + auth.currentUser.uid + '/firstName'] = firstName;
-    updates['user_information/' + auth.currentUser.uid + '/secondName'] = secondName;
-  }
-  
-  // Update about page
-  if (state.userAboutRef && auth.currentUser) {
-    updates['user_information/' + auth.currentUser.uid + '/about/name'] = newName.trim();
-  }
-  
-  // Update ALL existing artworks with new artist name
-  if (state.allArtworks.length > 0 && auth.currentUser) {
-    state.allArtworks.forEach(function(art) {
-      updates['user_information/' + auth.currentUser.uid + '/artworks/' + art.id + '/artistName'] = newName.trim();
-    });
-  }
-  
-  // Single Firebase update call for everything
-  if (Object.keys(updates).length > 0) {
-    await db.ref().update(updates);
-  }
-  
-  // Update local state
-  if (state.userProfile) {
-    state.userProfile.firstName = firstName;
-    state.userProfile.secondName = secondName;
-  }
-  
-  // Update local artworks array
-  state.allArtworks.forEach(function(art) {
-    art.artistName = newName.trim();
-  });
-  
-  // Update all UI elements
-  var fullName = newName.trim();
-  
-  var nameEl = document.getElementById('adminUserName');
-  if (nameEl) nameEl.textContent = fullName;
-  
-  var mobileNameEl = document.getElementById('mobileMenuName');
-  if (mobileNameEl) mobileNameEl.textContent = fullName;
-  
-  var mobileEmailEl = document.getElementById('mobileMenuEmail');
-  if (mobileEmailEl && auth.currentUser) mobileEmailEl.textContent = auth.currentUser.email || '';
-  
-  var aboutArtistName = document.getElementById('aboutArtistName');
-  if (aboutArtistName) aboutArtistName.value = fullName;
-  
-  var devName = document.getElementById('devMsgName');
-  if (devName) devName.value = fullName;
-  
-  // Re-render artwork list to show updated names
-  renderAdminList();
-}
-
-   async function isAboutPageFilled() {
-  if (!state.userAboutRef) return false;
-  
-  try {
-    var snap = await state.userAboutRef.once('value');
-    var data = snap.val();
-    
-    if (!data) return false;
-    
-    // Define required fields for "filled" status
-    var requiredFields = ['name', 'photo', 'tagline', 'bio1'];
-    
-    for (var i = 0; i < requiredFields.length; i++) {
-      if (!data[requiredFields[i]] || data[requiredFields[i]].trim() === '') {
-        return false;
-      }
-    }
-    
-    return true;
-  } catch (err) {
-    console.error('About check error:', err);
-    return false;
-  }
-}
-   
 document.addEventListener('DOMContentLoaded', function() {
   var uploadForm = document.getElementById('uploadForm');
   if (uploadForm) {
     uploadForm.addEventListener('submit', async function (e) {
       e.preventDefault();
-      e.preventDefault();
-
-// ============ ADD THIS CHECK HERE ============
-var aboutFilled = await isAboutPageFilled();
-if (!aboutFilled) {
-  showToast('Please complete your About/Profile page before uploading artworks.', 'info');
-  switchTab('about');
-  
-  // Optional: Scroll to the about form
-  setTimeout(function() {
-    var aboutForm = document.getElementById('aboutForm');
-    if (aboutForm) aboutForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 300);
-  
-  return; // Stop execution, don't proceed with upload
-}
-// ==============================================
-
-var b = document.getElementById('uploadBtn');
-var er = document.getElementById('uploadError');
-// ... rest of existing code continues
       var b = document.getElementById('uploadBtn');
       var er = document.getElementById('uploadError');
       if (!er) return;
@@ -2046,19 +1923,14 @@ var er = document.getElementById('uploadError');
           updatedAt: state.editMode ? Date.now() : null
         };
 
-               if (state.editMode && eid) {
+        if (state.editMode && eid) {
           await state.userArtworksRef.child(eid).update(data);
           showToast('Artwork updated', 'success');
         } else {
           await state.userArtworksRef.child(generateId()).set(data);
           showToast('Artwork added', 'success');
         }
-        
-        // Sync artist name to profile and about page
-        await syncArtistNameToProfile(data.artistName);
-        
         resetUploadForm();
-        
       } catch (err) {
         er.textContent = 'Save failed: ' + err.message;
         er.classList.remove('hidden');
@@ -3239,25 +3111,9 @@ if (artistInput && !state.editMode) artistInput.value = name;
         if (nameParts.length >= 2) { profileUpdates.firstName = nameParts[0]; profileUpdates.secondName = nameParts.slice(1).join(' '); }
         else { profileUpdates.firstName = name; profileUpdates.secondName = ''; }
         await state.userInfoRef.update(profileUpdates);
-               if (state.userProfile) { state.userProfile.firstName = profileUpdates.firstName; state.userProfile.secondName = profileUpdates.secondName || ''; }
-        
-        // Update all existing artworks with new name
-        if (state.allArtworks.length > 0 && auth.currentUser) {
-          var artUpdates = {};
-          state.allArtworks.forEach(function(art) {
-            artUpdates['user_information/' + auth.currentUser.uid + '/artworks/' + art.id + '/artistName'] = name;
-          });
-          await db.ref().update(artUpdates);
-          state.allArtworks.forEach(function(art) {
-            art.artistName = name;
-          });
-          renderAdminList();
-        }
-        
+        if (state.userProfile) { state.userProfile.firstName = profileUpdates.firstName; state.userProfile.secondName = profileUpdates.secondName || ''; }
         var nameEl = document.getElementById('adminUserName');
         if (nameEl) nameEl.textContent = name;
-        var mobileNameEl = document.getElementById('mobileMenuName');
-        if (mobileNameEl) mobileNameEl.textContent = name;
         var artistInput = document.getElementById('artArtistName');
         if (artistInput && !state.editMode) artistInput.value = name;
         var devName = document.getElementById('devMsgName');
@@ -4055,6 +3911,136 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 });
+
+// ==========================================
+// UNIVERSAL NON-DESTRUCTIVE AUTO-SCALER
+// ==========================================
+(function() {
+  const TARGET_WIDTH = 820;
+  const BASE_HEIGHT = 1180;
+  
+  // 1. Create the wrapper
+  const wrapper = document.createElement('div');
+  wrapper.id = 'universal-app-scaler';
+  
+  // 2. Move ALL existing website content into this wrapper
+  while (document.body.firstChild) {
+    wrapper.appendChild(document.body.firstChild);
+  }
+  document.body.appendChild(wrapper);
+  
+  // 3. Smart Fixed-Element Isolation System
+  const isolatedElements = new Set();
+  
+  function isolateFixedElements(scale) {
+    const allElements = wrapper.querySelectorAll('*');
+    allElements.forEach(el => {
+      if (isolatedElements.has(el)) return;
+      if (window.getComputedStyle(el).position === 'fixed') {
+        isolatedElements.add(el);
+        document.body.appendChild(el);
+        el.style.zoom = scale;
+      }
+    });
+  }
+  
+  // 4. The Scaling Function
+  function scaleAppToFitScreen() {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    const scaleX = screenWidth / TARGET_WIDTH;
+    const scaleY = screenHeight / BASE_HEIGHT;
+    const finalScale = Math.min(scaleX, scaleY);
+    
+    // Dynamic height to ensure it touches the bottom
+    const dynamicHeight = screenHeight / finalScale;
+    
+    // Scale the wrapper
+    wrapper.style.width = TARGET_WIDTH + 'px';
+    wrapper.style.minHeight = dynamicHeight + 'px';
+    wrapper.style.margin = '0 auto';
+    wrapper.style.zoom = finalScale;
+    
+    // Calculate the exact physical pixel width and left-position of the scaled wrapper
+    const scaledWidth = TARGET_WIDTH * finalScale;
+    const wrapperOffsetLeft = (screenWidth - scaledWidth) / 2;
+    
+    // Update isolated elements
+    isolatedElements.forEach(el => {
+      el.style.zoom = finalScale;
+      
+      const computedStyle = window.getComputedStyle(el);
+      const isFullWidth = computedStyle.left === '0px' && (computedStyle.width === '100%' || el.style.width === '100%');
+      const isFullOverlay = computedStyle.top === '0px' && computedStyle.height === '100%';
+      
+      // If it's a full-width bar (like a Navbar or Music Player) but NOT a full-screen overlay (like a Modal)
+      if (isFullWidth && !isFullOverlay) {
+        // Force it to perfectly match the 820px scaled boundaries
+        el.style.width = scaledWidth + 'px';
+        el.style.left = wrapperOffsetLeft + 'px';
+        el.style.right = 'auto'; // Prevent it from stretching across the whole screen
+      } else {
+        // Ensure overlays go back to full screen if they were previously changed
+        if (el.style.width === scaledWidth + 'px') {
+          el.style.width = '';
+          el.style.left = '';
+          el.style.right = '';
+        }
+      }
+    });
+  }
+  
+  // 5. MutationObserver: Catch dynamically added elements
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.nodeType !== 1) return;
+        if (node === wrapper) return;
+        
+        if (node.parentNode === document.body) {
+          if (window.getComputedStyle(node).position === 'fixed') {
+            isolatedElements.add(node);
+            node.style.zoom = wrapper.style.zoom;
+            return;
+          }
+        }
+        
+        if (node.parentNode === wrapper || wrapper.contains(node)) {
+          const checkAndIsolate = (el) => {
+            if (isolatedElements.has(el)) return;
+            if (window.getComputedStyle(el).position === 'fixed') {
+              isolatedElements.add(el);
+              document.body.appendChild(el);
+              el.style.zoom = wrapper.style.zoom;
+            } else {
+              el.querySelectorAll && el.querySelectorAll('*').forEach(checkAndIsolate);
+            }
+          };
+          checkAndIsolate(node);
+        }
+      });
+    });
+  });
+  
+  observer.observe(document.body, { childList: true, subtree: true });
+  
+  // 6. Initialization
+  scaleAppToFitScreen();
+  
+  setTimeout(() => {
+    isolateFixedElements(wrapper.style.zoom);
+    // Run scaling one more time after isolation to apply the width constraints
+    scaleAppToFitScreen();
+  }, 100);
+  
+  window.addEventListener('resize', scaleAppToFitScreen);
+  window.addEventListener('orientationchange', scaleAppToFitScreen);
+  
+  if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener('change', scaleAppToFitScreen);
+  }
+})();
 
 /* ==============================================
    INIT
