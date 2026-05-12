@@ -4,6 +4,8 @@
 const AUTH_CONFIG = {
   apiKey: "AIzaSyC483ZOHvItMVBCe1HufHO39FyYVlNDPLU",
   authDomain: "auther-afro-gallero.firebaseapp.com",
+  // ⬇️ THIS IS THE MISSING LINE - ADD IT! ⬇️
+  databaseURL: "https://auther-afro-gallero-default-rtdb.firebaseio.com/",
   projectId: "auther-afro-gallero",
   storageBucket: "auther-afro-gallero.firebasestorage.app",
   messagingSenderId: "60533127446",
@@ -1965,9 +1967,9 @@ document.addEventListener('keydown', (e) => {
   }();
   
 /* ============================================
-   ADVANCED WEBSITE ANALYTICS SYSTEM v4.0.1
+   ADVANCED WEBSITE ANALYTICS SYSTEM v4.1.0
    Enterprise-Grade Client-Side Analytics
-   (Bugfix release)
+   (Stability & Debugging Release)
    ============================================ */
 const SiteAnalytics = (function () {
 
@@ -2024,7 +2026,6 @@ const SiteAnalytics = (function () {
   var botScore = 0, securityFlags = {}, suspiciousEvents = [];
 
   var journeySteps = [], lastPageEnterTs = 0, exitPage = '';
-  /* FIX #1: was missing entirely */
   var journeyFlushTimer = null;
 
   var activeFunnels = {}, definedFunnels = {};
@@ -2044,26 +2045,61 @@ const SiteAnalytics = (function () {
   var seoData = {};
 
   var geoReady = false;
+  /* FIX: Cache device snapshot to prevent infinite recursion in public API */
+  var _deviceSnapshotCache = null;
 
   /* ========================================
-     UTILITY HELPERS
+     UTILITY HELPERS — FIXED WITH ERROR LOGGING
      ======================================== */
   function safeTx(path, delta) {
     if (!db) return;
-    try { db.ref(path).transaction(function (v) { return (v || 0) + delta; }); } catch (e) { }
+    try {
+      db.ref(path).transaction(function (currentValue) {
+        if (currentValue === null || currentValue === undefined) return delta;
+        return (Number(currentValue) || 0) + delta;
+      }, function (error, committed, snapshot) {
+        if (error) {
+          console.error('[Analytics] TX failed:', path, error.message);
+        }
+      });
+    } catch (e) {
+      console.error('[Analytics] TX error:', path, e.message);
+    }
   }
+
   function safeSet(path, val) {
     if (!db) return;
-    try { db.ref(path).set(val); } catch (e) { }
+    try {
+      db.ref(path).set(val).catch(function (error) {
+        console.error('[Analytics] SET failed:', path, error.code || error.message);
+      });
+    } catch (e) {
+      console.error('[Analytics] SET error:', path, e.message);
+    }
   }
+
   function safePush(path, val) {
     if (!db) return;
-    try { db.ref(path).push().set(val); } catch (e) { }
+    try {
+      db.ref(path).push().set(val).catch(function (error) {
+        console.error('[Analytics] PUSH failed:', path, error.code || error.message);
+      });
+    } catch (e) {
+      console.error('[Analytics] PUSH error:', path, e.message);
+    }
   }
+
   function safeUpdate(obj) {
     if (!db) return;
-    try { db.ref().update(obj); } catch (e) { }
+    try {
+      db.ref().update(obj).catch(function (error) {
+        console.error('[Analytics] UPDATE failed:', error.code || error.message);
+      });
+    } catch (e) {
+      console.error('[Analytics] UPDATE error:', e.message);
+    }
   }
+
   function trimNode(nodePath, max) {
     if (!db) return;
     db.ref(nodePath).orderByKey().limitToFirst(max + 100).once('value').then(function (snap) {
@@ -2077,8 +2113,11 @@ const SiteAnalytics = (function () {
           safeUpdate(deletes);
         }
       }
-    }).catch(function () { });
+    }).catch(function (err) {
+      console.error('[Analytics] trimNode error:', err.message);
+    });
   }
+
   function todayKey() { return new Date().toISOString().split('T')[0]; }
   function pageName() { var h = location.hash.slice(1) || 'home'; return h.split('/')[0]; }
   function fullRoute() { return location.hash.slice(1) || 'home'; }
@@ -2293,8 +2332,10 @@ const SiteAnalytics = (function () {
       deviceSubtype = detectDeviceSubtype(); browserEngine = getBrowserEngine();
     }
   }
-  function getDeviceSnapshot() {
-    return {
+
+  /* FIX: Internal builder — builds and caches the snapshot object */
+  function _buildDeviceSnapshot() {
+    _deviceSnapshotCache = {
       dev: getDevice(), devSubtype: deviceSubtype, brw: getBrowser(),
       brwVersion: getBrowserVersion(), engine: browserEngine, os: getOS(),
       scr: screen.width + 'x' + screen.height, colorDepth: screen.colorDepth,
@@ -2311,6 +2352,7 @@ const SiteAnalytics = (function () {
       doNotTrack: navigator.doNotTrack === '1',
       pdfViewer: navigator.pdfViewerEnabled !== false, online: navigator.onLine
     };
+    return _deviceSnapshotCache;
   }
 
   /* ========================================
@@ -2367,7 +2409,6 @@ const SiteAnalytics = (function () {
     tryApi(0);
   }
 
-  /* FIX #5: separated VPN detection so it runs AFTER geo data is ready */
   function runVPNDetection() {
     if (ipTimezone && ipTimezone !== 'unknown') {
       var browserTz = '';
@@ -2380,7 +2421,6 @@ const SiteAnalytics = (function () {
     if (langCountry && country !== 'unknown' && langCountry.toLowerCase() !== country.toLowerCase()) {
       securityFlags.langCountryMismatch = true;
     }
-    /* Recalculate bot score with new flags */
     if (securityFlags.tzMismatch || securityFlags.langCountryMismatch) {
       var current = botScore || 0;
       var add = 0;
@@ -2389,7 +2429,6 @@ const SiteAnalytics = (function () {
       botScore = clamp(current + add, 0, 100);
     }
   }
-  /* Keep old name as alias for internal use */
   function detectVPNHints() { return runVPNDetection(); }
 
   /* ========================================
@@ -2495,7 +2534,7 @@ const SiteAnalytics = (function () {
       steps: steps, exitPage: exitPage, ts: startTs
     });
     for (var i = 0; i < steps.length - 1; i++) {
-      var pathKey = steps[i].page + ' → ' + steps[i + 1].page;
+      var pathKey = steps[i].page + ' \u2192 ' + steps[i + 1].page;
       safeTx('analytics/paths/' + pathKey, 1);
     }
     if (exitPage) safeTx('analytics/exitPages/' + exitPage, 1);
@@ -2893,7 +2932,6 @@ const SiteAnalytics = (function () {
     var mouseMoved = false;
     document.addEventListener('mousemove', function () { mouseMoved = true; }, { passive: true });
     setTimeout(function () { if (!mouseMoved && Date.now() - startTs > 5000) { securityFlags.noMouse = true; botIndicators += 15; } }, 8000);
-    /* FIX #5: Don't call detectVPNHints here — it runs inside detectCountry callback after geo data is ready */
     botScore = clamp(botIndicators, 0, 100);
     localStorage.setItem(SEC_KEY, botScore.toString());
     if (db) {
@@ -3107,7 +3145,6 @@ const SiteAnalytics = (function () {
       fullFrom: event.fullFrom || '', fullTo: event.fullTo || '',
       key: event.key || '', oldValue: event.oldValue || '', newValue: event.newValue || '',
       query: event.query || '', formId: event.formId || '',
-      /* FIX #3: added field to enqueue object */
       field: event.field || '',
       url: event.url || '', email: event.email || '', phone: event.phone || '',
       awayMs: event.awayMs || 0, orientation: event.orientation || '',
@@ -3155,7 +3192,6 @@ const SiteAnalytics = (function () {
         case 'state_change': stateChangeKeys[ev.key] = (stateChangeKeys[ev.key] || 0) + 1; break;
         case 'search': case 'search_submit': var q = ev.query.toLowerCase().trim().substring(0, 60); if (q) { searchQueries[q] = (searchQueries[q] || 0) + 1; sessionSearches++; } break;
         case 'form_submit': formSubmits++; break;
-        /* FIX #2: changed ev.label to ev.field */
         case 'form_error': var feKey = ev.formId + '|' + ev.field; formErrors[feKey] = (formErrors[feKey] || 0) + 1; break;
         case 'external_link': externalLinks++; break;
         case 'download': downloads++; break;
@@ -3228,7 +3264,7 @@ const SiteAnalytics = (function () {
      ======================================== */
   function trackVisit(isNew, visitCount) {
     if (!db || visitTracked) return; visitTracked = true;
-    var pg = pageName(), td = todayKey(), visitCat = getVisitCategory(visitCount), devSnap = getDeviceSnapshot();
+    var pg = pageName(), td = todayKey(), visitCat = getVisitCategory(visitCount), devSnap = _buildDeviceSnapshot();
     var dk = 'adv_' + td + '_' + fp;
     if (!sessionStorage.getItem(dk)) {
       sessionStorage.setItem(dk, '1');
@@ -3274,27 +3310,6 @@ const SiteAnalytics = (function () {
   }
 
   /* ========================================
-     18. SERVER-SIDE INTERFACES (docs only)
-     ======================================== */
-  /*
-   * CLOUD FUNCTIONS NEEDED:
-   * - Infrastructure: CPU/RAM/disk via scheduled CF
-   * - SSL cert check via scheduled CF
-   * - CDN perf via provider API
-   * - DNS perf via scheduled CF
-   * - Uptime: multi-region pings, alert on downtime
-   * - Alert dispatch: listen to analytics/alerts, POST to Slack/Email/SMS/Telegram
-   * - SEO indexing: Google Search Console API
-   * - AI reports: daily aggregation
-   * - Cohort analysis: weekly retention
-   * - Attribution modeling: on conversion, look back touchpoints
-   * - ML predictions: hourly traffic/conversion forecast
-   * - Backup: every 6h export to BigQuery/S3
-   * - Multi-region: region-specific presence nodes
-   * - Edge analytics: CDN worker for page views/bot filtering
-   */
-
-  /* ========================================
      19. PUBLIC API
      ======================================== */
   function trackEvent(eventType, label, data) { markInteracted(); enqueue({ type: 'custom', eventType: eventType, label: label || '', data: data || {} }); }
@@ -3337,7 +3352,8 @@ const SiteAnalytics = (function () {
   function getUTMData() { return utmData; }
   function getTrafficSource() { return trafficSource; }
   function getSecurityFlags() { return securityFlags; }
-  function getDeviceSnapshot() { return getDeviceSnapshot(); }
+  /* FIX: Return cached snapshot instead of calling itself */
+  function getDeviceSnapshot() { return _deviceSnapshotCache || _buildDeviceSnapshot(); }
 
   /* ========================================
      20. INITIALIZATION
@@ -3348,9 +3364,31 @@ const SiteAnalytics = (function () {
     flushFormAnalytics(null, true); writeAIScores(); detectAnomalies();
   }
   function init(analyticsDb) {
-    db = analyticsDb; if (!db) return;
+    if (!analyticsDb) {
+      console.error('[Analytics] No database instance provided!');
+      return;
+    }
+    db = analyticsDb;
+
+    /* FIX: Connection test — confirms writes actually work */
+    console.log('[Analytics] Testing database connection...');
+    db.ref('analytics/_conn').set(true)
+      .then(function () {
+        console.log('[Analytics] ✅ DB connected — analytics will save under /analytics');
+        db.ref('analytics/_conn').remove();
+      })
+      .catch(function (err) {
+        console.error('[Analytics] ❌ DB write FAILED:', err.code || err.message);
+        console.error('[Analytics] → Check databaseURL in AUTH_CONFIG');
+        console.error('[Analytics] → Check Firebase Realtime Database rules');
+      });
+
     fp = getFingerprint(); sid = getSessionId();
     var isNew = isFirstVisit(); var visitCount = getVisitCount(); startTs = Date.now();
+
+    /* Build device snapshot once at init */
+    _buildDeviceSnapshot();
+
     collectDeviceInfo();
     parseUTM(); classifyTrafficSource();
     initSecurity();
